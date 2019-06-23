@@ -870,20 +870,31 @@ endif
   close(10001)
   endif
 
-  INQUIRE(file='delta.inp',EXIST=check)
+  INQUIRE(file='delta1.inp',EXIST=check)
   if(check)then
      write(*,*)'read delta.inp'
-    open(unit=10011,file='delta.inp')
+     open(unit=10011,file='delta1.inp')
+
+     ! spin 1
     j=0
     do
        read(10011,*,end=111) ttemp,(tref(k),timf(k),k=1,cluster_problem_size**2)
        j=j+1
        frequi(j)=ttemp
        forall(ii=1:cluster_problem_size,jj=1:cluster_problem_size)  hybrid_in(ii,jj,j)=cmplx(tref((ii-1)*cluster_problem_size+jj),timf((ii-1)*cluster_problem_size+jj))
+    enddo
+111 continue
+    j=0
+    open(unit=10012,file='delta2.inp')
+    do
+       read(10012,*,end=112) ttemp,(tref(k),timf(k),k=1,cluster_problem_size**2)
+       j=j+1
+       frequi(j)=ttemp
        forall(ii=1:cluster_problem_size,jj=1:cluster_problem_size) hybrid_in(ii+cluster_problem_size,jj+cluster_problem_size,j)=cmplx(tref((ii-1)*cluster_problem_size+jj),timf((ii-1)*cluster_problem_size+jj))
 
     enddo
-111 continue
+112 continue
+    ! spin 2
     if(j/=nmatsu_frequ)then
        write(*,*) 'not the right number of matsubara frequencies in delta_input_1'
        write(*,*) j, nmatsu_frequ
