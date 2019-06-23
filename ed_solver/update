@@ -1,0 +1,7 @@
+#0!/bin/bash
+mpif90   -ffree-line-length-4000 -cpp -D__complex -D__DUMP_DISLIN  -c -O0 -I./MODFILES/ $1.f90 -I./MODFILES/ 
+echo $1
+echo `ls $1.o`
+ar ru libdmftsolverED.a $1.o 
+rm $1.o
+mv *.mod MODFILES

@@ -1,0 +1,6 @@
+ed_prog.f90:3:6:
+
+   use DMFT_SOLVER_ED
+      1
+Fatal Error: Can't open module file 'dmft_solver_ed.mod' for reading at (1): No such file or directory
+compilation terminated.
