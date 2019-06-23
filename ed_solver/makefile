@@ -32,6 +32,7 @@ build: comp comp2 finish
 prog:
 	cp splines/libsplines.a .
 	${FCOMPL} -o dmft_solver.out  ${FFLAG} memory_address_functions.o ed_prog.f90 -L.  -ldmftsolverED -lsplines -llapack -lblas -I./MODFILES
+	${FCOMPL} -o generate_edcorrel.out dmft_generate_edcorrel.f90
 
 finish:
 	cp splines/libsplines.a .

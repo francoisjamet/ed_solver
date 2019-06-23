@@ -310,8 +310,9 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
     Chi_spin   = ( Chi_loc(:,:,:,:,:,1)-Chi_loc (:,:,:,:,:,2) )/spindeg
     Chi0_charge= (Chi0_loc(:,:,:,:,:,1)+Chi0_loc(:,:,:,:,:,2) )/chargedeg
     Chi0_spin  = (Chi0_loc(:,:,:,:,:,1)-Chi0_loc(:,:,:,:,:,2) )/spindeg
-
+    call write_chiloc
     call write_results_fermionic
+
 
    if(rank==0) write(*,*)'NEXT OMEGA , RANK : ', rank
 
@@ -540,7 +541,7 @@ subroutine init
      path=.true.
 
      if(path) then
-       nomega=1
+       nomega=2
        roaming=.false.
        vertex_gpu=.false.
      else
@@ -1037,7 +1038,25 @@ subroutine open_path_area_file
     endif
 
 end subroutine
-
+subroutine write_chiloc
+  integer :: om,i1,i2,i3,i4,u1,u2
+  do  i1 = 1, norb
+     do  i2 = 1, norb
+        do  i3 = 1, norb
+           do  i4 = 1, norb
+              open(unit=8080,file='chiloc_spin_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
+              open(unit=8081,file='chiloc_charge_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
+              do om = 1, j_
+                 write(8080,*) real(Chi_spin(i1,i2,i3,i4,om)), aimag(Chi_spin(i1,i2,i3,i4,om))
+                 write(8081,*) real(Chi_charge(i1,i2,i3,i4,om)), aimag(Chi_charge(i1,i2,i3,i4,om))
+              enddo
+              close(8080)
+              close(8081)
+           enddo
+        enddo
+     enddo
+  enddo
+end subroutine write_chiloc
 subroutine write_results_fermionic
 implicit none
 integer :: a,b,aa,bb
