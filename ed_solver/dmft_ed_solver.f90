@@ -1129,6 +1129,22 @@ endif
  endif
 
  if(rank==0.or.no_mpi)then
+    open(unit=10001,file='sig1.inp')
+    open(unit=10002,file='sig2.inp')
+    k=cluster_problem_size
+    do j=1,nmatsu_frequ
+       do ii = 1, k
+          do jj = 1, k
+             write(10001,'(2(x,f14.8))',advance='no') real(self_out(ii,jj,j)),aimag(self_out(ii,jj,j))
+             write(10002,'(2(x,f14.8))',advance='no') real(self_out(ii+k,jj+k,j)),aimag(self_out(ii+k,jj+k,j))
+          enddo
+       enddo
+       write(10001,*)
+       write(10002,*)
+    enddo
+    close(10001)
+    close(10002)
+
  open(unit=10001,file='_sigma_output_full_1',form='unformatted')
   k=cluster_problem_size
   do j=1,nmatsu_frequ

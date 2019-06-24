@@ -8,13 +8,13 @@ MODULE bath_class_hybrid
   USE minimization_wrapping
   use stringmanip
   use correl_class, only : swap
-  
+
   IMPLICIT NONE
 
   REAL(DBL),PARAMETER,      PRIVATE          :: zero=0.0_DBL,one=1.0_DBL,two=2.0_DBL
   LOGICAL,  PARAMETER,      PRIVATE          :: F=.FALSE.,T=.TRUE.
   TYPE(correl_type),        PRIVATE,SAVE     :: hybrid2fit
-  TYPE(bath_type),          PRIVATE,SAVE     :: batht      
+  TYPE(bath_type),          PRIVATE,SAVE     :: batht
   integer,                  PRIVATE          :: icount_=0
 
 INTERFACE MATMUL_x
@@ -104,7 +104,7 @@ SUBROUTINE invmat_jordan_c(nn,a)
   IMPLICIT NONE
   COMPLEX(8), DIMENSION(:,:), INTENT(INOUT) :: a
 
-  !--------------------------------------------------------------------------! 
+  !--------------------------------------------------------------------------!
   ! Linear equation solution by Gauss-Jordan elimination                     !
   ! a is an N x N input coefficient matrix. On output, a is replaced by its  !
   ! matrix inverse.                                                          !
@@ -112,7 +112,7 @@ SUBROUTINE invmat_jordan_c(nn,a)
 
   INTEGER, DIMENSION(SIZE(a,1))      :: ipiv,indxr,indxc
 
-  !These arrays are used for bookkeeping on the pivoting. 
+  !These arrays are used for bookkeeping on the pivoting.
 
   INTEGER                            :: nn
   LOGICAL, DIMENSION(SIZE(a,1))      :: lpiv
@@ -130,9 +130,9 @@ SUBROUTINE invmat_jordan_c(nn,a)
   ipiv=0
 
   DO i=1,n
-     !Main loop over columns to be reduced. 
+     !Main loop over columns to be reduced.
      lpiv = (ipiv == 0)
-     !Begin search for a pivot element. 
+     !Begin search for a pivot element.
      irc=MAXLOC(ABS(a),outerand(lpiv,lpiv))
      ipiv(icol)=ipiv(icol)+1
      IF (ipiv(icol) > 1) STOP 'gaussj:singular matrix (1)'
@@ -145,11 +145,11 @@ SUBROUTINE invmat_jordan_c(nn,a)
      !originally located. If indxr(i) = indxc(i) there is an implied column
      !interchange. With this form of bookkeeping, the inverse matrix will be
      !scrambled by
-     !columns. 
+     !columns.
 
      IF (irow /= icol) CALL swap(a(irow,:),a(icol,:))
 
-     indxr(i)=irow !We are now ready to divide the pivot row by the pivot element, 
+     indxr(i)=irow !We are now ready to divide the pivot row by the pivot element,
                    !located at irow and icol.
      indxc(i)=icol
 
@@ -159,7 +159,7 @@ SUBROUTINE invmat_jordan_c(nn,a)
      a(icol,:)=a(icol,:)*pivinv
      dumc=a(:,icol)
 
-     !Next, we reduce the rows, except for the pivot one, of course. 
+     !Next, we reduce the rows, except for the pivot one, of course.
      a(:,icol)     = CMPLX(zero,zero)
      a(icol,icol)  = pivinv
      a(1:icol-1,:) = a(1:icol-1,:) - outerprod_c(dumc(1:icol-1),a(icol,:))
@@ -167,10 +167,10 @@ SUBROUTINE invmat_jordan_c(nn,a)
   END DO
 
   !It only remains to unscramble the solution in view of the column
-  !interchanges. 
+  !interchanges.
   !We do this by interchanging pairs of columns in the reverse order that the
-  !permutation 
-  !was built up. 
+  !permutation
+  !was built up.
 
   DO l=n,1,-1
      CALL swap(a(:,indxr(l)),a(:,indxc(l)))
@@ -213,7 +213,7 @@ END SUBROUTINE
 
      if(present(diagmat))then
       if(diagmat)then
-       do i=1,size(mat,1) 
+       do i=1,size(mat,1)
         if(abs(mat(i,i))>1.d-20)then
          mat(i,i)=1.d0/mat(i,i)
         else
@@ -228,7 +228,7 @@ END SUBROUTINE
        write(*,*) 'DIMENSION OF MATRIX : ', shape(mat)
        stop 'error invmat_comp try to inverse rectangular matrix'
      endif
- 
+
      if(present(det2b)) det2b=0.; if(present(detb))  detb=0.; if(present(pdetb)) pdetb=0
 
       if(present(block_matrix))then
@@ -600,7 +600,7 @@ end subroutine
     REAL(8),TARGET,OPTIONAL        ::  cptvec(ncpt_para*ncpt_tot)
     REAL(8),POINTER                ::  cptup(:)=>NULL(), cptdn(:)=>NULL(), cptbcs(:)=>NULL()
     LOGICAL,OPTIONAL               ::  cpt_build_matrix
-    REAL(8),OPTIONAL               ::  Vweight 
+    REAL(8),OPTIONAL               ::  Vweight
 
     Nb=BATH%Nb; Ntot=Nb+ncpt_approx_tot;Nc=BATH%Nc
 
@@ -628,7 +628,7 @@ end subroutine
 
       if(present(cptvec))then
             cptup =>cptvec(           1:  ncpt_tot)
-         if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then                        
+         if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then
           if(ncpt_para==3)then
             cptdn =>cptvec(  ncpt_tot+1:2*ncpt_tot)
             cptbcs=>cptvec(2*ncpt_tot+1:3*ncpt_tot)
@@ -647,15 +647,15 @@ end subroutine
          do i=1,ncpt_chain_coup*Nb
             if(abs(cptup(i))>cpt_upper_bound) cptup(i)=cptup(i)/abs(cptup(i))*cpt_upper_bound
             if(abs(cptdn(i))>cpt_upper_bound) cptdn(i)=cptdn(i)/abs(cptdn(i))*cpt_upper_bound
-            if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then                        
+            if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then
              if(abs(cptbcs(i))>cpt_upper_bound) cptbcs(i)=cptbcs(i)/abs(cptbcs(i))*cpt_upper_bound
             endif
          enddo
 
          if(present(Vweight)) then
             Vweight=sum(abs(cptup( 1:ncpt_chain_coup*Nb ))**2)+sum(abs(cptdn( 1:ncpt_chain_coup*Nb   ))**2)
-           if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then                        
-            Vweight=Vweight + sum(abs(cptbcs( 1:ncpt_chain_coup*Nb ))**2)  
+           if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then
+            Vweight=Vweight + sum(abs(cptbcs( 1:ncpt_chain_coup*Nb ))**2)
            endif
          endif
 
@@ -668,15 +668,15 @@ end subroutine
             do i=1,Nb
              j=Nb+k+(i-1)*ncpt_approx+1
              epsilon_cpt(i,j)=cptup(i+k*Nb)
-             epsilon_cpt(j,i)=conjg(epsilon_cpt(i,j)) 
+             epsilon_cpt(j,i)=conjg(epsilon_cpt(i,j))
             enddo
             do i=1,Nb
              j=Nb+k+(i-1)*ncpt_approx+1
              epsilon_cpt(Ntot+i,Ntot+j)=-cptdn(i+k*Nb)
-             epsilon_cpt(Ntot+j,Ntot+i)=conjg(epsilon_cpt(Ntot+i,Ntot+j)) 
+             epsilon_cpt(Ntot+j,Ntot+i)=conjg(epsilon_cpt(Ntot+i,Ntot+j))
             enddo
            enddo
-           if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then                        
+           if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then
             do k=0,ncpt_chain_coup-1
              do i=1,Nb
                j=Nb+k+(i-1)*ncpt_approx+1
@@ -696,12 +696,12 @@ end subroutine
           do i=1,Nb
            j=Nb+k+(i-1)*ncpt_approx+1
            Eb(i,j)=cptup(i+k*Nb)
-           Eb(j,i)=conjg(Eb(i,j)) 
+           Eb(j,i)=conjg(Eb(i,j))
           enddo
           do i=1,Nb
            j=Nb+k+(i-1)*ncpt_approx+1
            Eb(Ntot+i,Ntot+j)=-cptdn(i+k*Nb)
-           Eb(Ntot+j,Ntot+i)=conjg(Eb(Ntot+i,Ntot+j)) 
+           Eb(Ntot+j,Ntot+i)=conjg(Eb(Ntot+i,Ntot+j))
           enddo
          enddo
          if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then
@@ -725,7 +725,7 @@ end subroutine
            j=ncpt_chain_coup*Nb+(i-1)*ncpt_approx
            Eb(Ntot+j+1:Ntot+j+ncpt_approx,Ntot+j+1:Ntot+j+ncpt_approx)=-transpose(fill_mat_from_vector(ncpt_approx,cptdn(ncpt_chain_coup*Nb+(i-1)*bl+1:ncpt_chain_coup*Nb+i*bl)))
          enddo
-         if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then                        
+         if(supersc_state.and..not.force_nupdn_basis.and..not.force_no_pairing)then
             do i=1,Nb
               bl=ncpt_approx*(ncpt_approx+1)/2
               j=ncpt_chain_coup*Nb+(i-1)*ncpt_approx
@@ -735,8 +735,8 @@ end subroutine
          endif
          if(present(cpt_build_matrix))then
            T_cpt                                             = 0.d0
-           T_cpt (    1:  Nc, 2*Nc     +1:2*Nc        + Nb ) = Vcb (    1 :   Nc,      1:     Nb ) 
-           T_cpt ( Nc+1:2*Nc, 2*Nc+Ntot+1:2*Nc + Ntot + Nb ) = Vcb ( Nc+1 : 2*Nc, Ntot+1:Ntot+Nb ) 
+           T_cpt (    1:  Nc, 2*Nc     +1:2*Nc        + Nb ) = Vcb (    1 :   Nc,      1:     Nb )
+           T_cpt ( Nc+1:2*Nc, 2*Nc+Ntot+1:2*Nc + Ntot + Nb ) = Vcb ( Nc+1 : 2*Nc, Ntot+1:Ntot+Nb )
            T_cpt                                             = T_cpt+transpose(conjg(T_cpt))
            T_cpt (    1:2*Nc,           1:2*Nc             ) = Eccc%rc%mat
            T_cpt (2*Nc+1:2*Nc+2*Ntot,2*Nc+1:2*Nc+2*Ntot)     = Eb
@@ -752,7 +752,7 @@ end subroutine
 
     endif
 
-    !-------------------------------------! 
+    !-------------------------------------!
     SELECT CASE (FREQTYPE)
       CASE(FERMIONIC)
          hybrid => BATH%hybrid%fctn
@@ -761,7 +761,7 @@ end subroutine
          hybrid => BATH%hybridret%fctn
          freq   => BATH%hybridret%freq%vec
       CASE DEFAULT
-         write(*,*) "ERROR IN bath2hybrid: ALLOWED FREQUENCY TYPES ARE "//FERMIONIC//" AND "//RETARDED 
+         write(*,*) "ERROR IN bath2hybrid: ALLOWED FREQUENCY TYPES ARE "//FERMIONIC//" AND "//RETARDED
          stop
     END SELECT
     !-------------------------------------!
@@ -862,7 +862,7 @@ else
                   if(fmos)then
                    do ll=(mm-1)*mmstep+1,mm*mmstep
                     hybrid(mm,mm,iw)=hybrid(mm,mm,iw)+conjg(Vcb(mm,ll))*Vcb(mm,ll)/(freq(iw)+Eb(ll,ll))
-                   enddo 
+                   enddo
                   else
                    do ll=1,size(Eb,1)
                     hybrid(mm,mm,iw)=hybrid(mm,mm,iw)+conjg(Vcb(mm,ll))*Vcb(mm,ll)/Ebm1(ll,ll)
@@ -870,7 +870,7 @@ else
                   endif
                 enddo
               endif
-         enddo 
+         enddo
 !#ifndef OPENMP_MPI_SAFE
 !$OMP END DO
 !$OMP END PARALLEL
@@ -962,7 +962,7 @@ endif
 
     IF(.NOT.ASSOCIATED(batht%Eb)) CALL new_bath(batht,bath)
     CALL copy_bath(batht,bath)
-    CALL bath2vec(batht) 
+    CALL bath2vec(batht)
     CALL bath2vec(bath)
 
     CALL dump_message(TEXT="############################")
@@ -1009,7 +1009,7 @@ endif
        write(*,*) '        rank = ', rank
        stop
       endif
- 
+
       icount_=0
 
       if(size2>1.and..not.no_mpi)then
@@ -1026,7 +1026,7 @@ endif
           call minimize_func_wrapper(distance_func,test,bath%nparam+ncpt_para*ncpt_tot,FIT_METH,istep, &
                              & dist_min,bath%dist_max,bath%search_step,use_mpi=.false.)
       endif
-      write(*,*) 'RANK WAITING FOR MASTER : ', rank 
+      write(*,*) 'RANK WAITING FOR MASTER : ', rank
       write(*,*) 'no_mpi flag             : ', no_mpi
       if(.not.no_mpi)then
        call mpibarrier
@@ -1065,7 +1065,7 @@ endif
       CALL bath2hybrid(bath,FERMIONIC,cptvec=test(bath%nparam+1:size(test)),cpt_build_matrix=.true.)
       CALL plot_some_results
       !we solve and obtain the GF of the disconnected problem
-      CALL bath2hybrid(bath,FERMIONIC) 
+      CALL bath2hybrid(bath,FERMIONIC)
       CALL bath2hybrid(bath,RETARDED)
      endif
 
@@ -1089,9 +1089,20 @@ endif
 
   subroutine plot_some_results
   character(12) :: lab
-  integer       :: kkk
+  integer       :: kkk,i,j
    if(rank/=0) return
    !call PGSUBP(4,4)
+   open(unit=1000,file='delta_fit1')
+   do kkk=1,size(hybrid2fit%freq%vec)
+      write(1000,'((x,f14.8))',advance='no') aimag(hybrid2fit%freq%vec(kkk))
+      do i = 1,size(hybrid2fit%fctn(:,1,1))/2
+         do j = 1, size(hybrid2fit%fctn(:,1,1))/2
+            write(1000,'(2(x,f14.8))',advance='no') real(bath%hybrid%fctn(i,j,kkk)),aimag(bath%hybrid%fctn(i,j,kkk))
+         enddo
+      enddo
+      write(1000,*)
+   enddo
+   close(1000)
 
    open(unit=1031,file='delta_skip_fit1')
    do kkk=1,size(hybrid2fit%freq%vec)
@@ -1107,7 +1118,7 @@ endif
    do j=1,size(bath%hybrid%fctn(:,1,1))
    do kkk=1,size(bath%hybrid%fctn(1,:,1))
 
-    if(j==kkk.or.fit_all_elements_show_graphs)then   
+    if(j==kkk.or.fit_all_elements_show_graphs)then
     lab=TRIM(ADJUSTL(toString(j)))//"_"//TRIM(ADJUSTL(toString(kkk)))//"_iter"//TRIM(ADJUSTL(toString(iterdmft)))//"_"
      if(.not.fit_green_func_and_not_hybrid)then
       !!call plotarray( aimag(hybrid2fit%freq%vec),real(bath%hybrid%fctn(j,kkk,:)), &
@@ -1148,13 +1159,13 @@ endif
 !*********************************************
 !*********************************************
 
-  SUBROUTINE distance_func(dist,n,vec) 
+  SUBROUTINE distance_func(dist,n,vec)
     REAL(DBL), INTENT(OUT) :: dist
     INTEGER,   INTENT(IN)  :: n
     REAL(DBL), INTENT(IN)  :: vec(n)
     REAL(DBL)              :: Vweight
- 
-    !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ 
+
+    !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
     !$$ EXTRACT THE NEW BATH PARAMETERS OUT OF VECTOR 'vec' $$
     !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
@@ -1165,7 +1176,7 @@ endif
        stop 'termine'
     endif
 
-    batht%vec(1:batht%nparam)=vec(1:batht%nparam) 
+    batht%vec(1:batht%nparam)=vec(1:batht%nparam)
     CALL vec2bath(batht)
 
     !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -1189,18 +1200,18 @@ endif
     !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
     !$$ COMPUTE THE DISTANCE TO THE DESIRED HYBRIZATION FUNCTION $$
     !$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    CALL diff_correl(dist,batht%hybrid,hybrid2fit) 
+    CALL diff_correl(dist,batht%hybrid,hybrid2fit)
 
     if(ncpt_tot/=0)then
       dist=dist+Vweight*cpt_lagrange
     endif
- 
+
     icount_=icount_+1
     if(mod(icount_,200) ==0)  write(log_unit,*) ' dist = ' , dist, icount_, rank
     if(mod(icount_,20)  ==0)  write(*,*)        ' dist = ' , dist, icount_, rank
 
     if(mod(icount_,100)==0.and.verbose_graph.and.size2==1) call plot_it_
-   
+
   END SUBROUTINE
 
 !*********************************************
