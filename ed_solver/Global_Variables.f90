@@ -20,7 +20,7 @@ module globalvar_ed_solver
 !**************************************************************************
 !**************************************************************************
 logical,parameter                                 :: FLAG_DUMP_INFO_FOR_GAMMA_VERTEX_ALL_SEC=.true.
-integer,parameter                                 :: FULL_ED_SWITCH=10
+integer,parameter                                 :: FULL_ED_SWITCH=40
 #ifdef ALLFIRSTCALL
  LOGICAL,parameter                                 :: ALL_FIRST_CALL=.true.
 #else
