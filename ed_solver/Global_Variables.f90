@@ -3,7 +3,7 @@ module globalvar_ed_solver
   USE genvar
   USE masked_matrix_class_mod
   use mpirout
-  use openmpmod 
+  use openmpmod
 
 !**************************************************************************
 !**************************************************************************
@@ -58,7 +58,7 @@ integer,parameter                                 :: FULL_ED_SWITCH=40
   LOGICAL                                          :: do_keldysh,FLAG_DUMP_INFO_FOR_GAMMA_VERTEX
   LOGICAL                                          :: FLAG_NCUP,fit_green_func_and_not_hybrid
   INTEGER                                          :: iterdmft,niterdmft,iwindow
-  INTEGER                                          :: cuda_blocksize 
+  INTEGER                                          :: cuda_blocksize
   INTEGER,allocatable                              :: MASK_AVERAGE(:,:),MASK_AVERAGE_SIGMA(:,:)
   LOGICAL                                          :: freeze_poles_delta,FLAG_GUP_IS_GDN,always_compute_static_obs
   INTEGER                                          :: FLAG_MPI_GREENS
@@ -66,7 +66,7 @@ integer,parameter                                 :: FULL_ED_SWITCH=40
   REAL(DBL)                                        :: weight_expo,cutoff_dynamic,cutoff_min_lanczos_vec
   REAL(DBL),allocatable                            :: FROZEN_POLES(:)
   CHARACTER(20)                                    :: which_lanczos
-  LOGICAL                                          :: OPEN_MP,ON_FLY,USE_TRANSPOSE_TRICK_MPI,restarted,only_compute_density,skip_fit_  
+  LOGICAL                                          :: OPEN_MP,ON_FLY,USE_TRANSPOSE_TRICK_MPI,restarted,only_compute_density,skip_fit_
   LOGICAL                                          :: start_para,PAIRING_IMP_TO_BATH,use_specific_set_parameters,force_no_bcs_pairing
   LOGICAL                                          :: superconducting_state
   LOGICAL,parameter                                :: Jhund_Slater_type=.true.
@@ -94,8 +94,8 @@ integer,parameter                                 :: FULL_ED_SWITCH=40
   REAL(DBL)                                        :: dEmax=0.d0,dEmax0=0.d0      ! max.energy of excited states to consider
   INTEGER                                          :: Neigen            = 0       ! max. # of eigenvalues computed in this window
   INTEGER                                          :: Block_size        = 0       ! Block size (ignored if Neigen=1: Block_size=1)
-  INTEGER                                          :: nsec  = 1                   ! Number of sectors to scan 
-  INTEGER                                          :: nsec0 = 1                   ! Scan of the sectors start at sec=sec0 
+  INTEGER                                          :: nsec  = 1                   ! Number of sectors to scan
+  INTEGER                                          :: nsec0 = 1                   ! Scan of the sectors start at sec=sec0
   INTEGER                                          :: window_hybrid = 0           ! window of matsubara frequencies to fit
   INTEGER                                          :: window_hybrid2 = 0
 ! window of matsubara frequencies to fit
@@ -103,7 +103,7 @@ integer,parameter                                 :: FULL_ED_SWITCH=40
   REAL(DBL), ALLOCATABLE                           :: dens(:)                     ! onsite charge density
   INTEGER, ALLOCATABLE                             :: list_sectors(:)
   LOGICAL                                          :: verbose_graph               ! plot fits of the hybridization at each step of the minimization
-  REAL(DBL)                                        :: fit_shift 
+  REAL(DBL)                                        :: fit_shift
   integer                                          :: set_omp_thread_outside_solver, set_omp_thread_during_solver
 !**************************************************************************
 !**************************************************************************

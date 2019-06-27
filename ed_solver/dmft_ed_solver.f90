@@ -1218,6 +1218,21 @@ endif
    write(10001,'(200f15.8)') (temp(k),k=1,2*2*cluster_problem_size+1)
   enddo
   close(10001)
+  open(unit=10001,file='g1.inp')
+  open(unit=10002,file='g2.inp')
+    k=cluster_problem_size
+    do j=1,nmatsu_long
+       do ii = 1, k
+          do jj = 1, k
+             write(10001,'(2(x,f15.10))',advance='no') real(g_out(ii,jj,j)),aimag(g_out(ii,jj,j))
+             write(10002,'(2(x,f15.10))',advance='no') real(g_out(ii+k,jj+k,j)),aimag(g_out(ii+k,jj+k,j))
+          enddo
+       enddo
+       write(10001,*)
+       write(10002,*)
+    enddo
+    close(10001)
+    close(10002)
 
  open(unit=10001,file='green_output_matsu')
  do j=1,nmatsu_frequ
@@ -1306,6 +1321,8 @@ endif
   integer,optional   ::  UUmatrix_in_size
   real(8),optional   ::  UUmatrix_in(impurity_%N,impurity_%N)
   integer            ::  chan,g1,g2,g3,g4
+  real(8) :: aa
+  integer :: ii
 
     use_precomputed_slater_matrix=.false.
 
@@ -1321,7 +1338,7 @@ endif
        stop
      endif
      if(chan>7)then
-       write(log_unit,*) 'ERROR, slater file contains too many orbitals (max is 6 for memory reason): ', chan
+       write(log_unit,*) 'ERROR, slater file contains too many orbitals (max is 6 for memory reason): '
        write(log_unit,*) '       remove this failsafe in case you want to do more...'
        stop
      endif
@@ -1338,7 +1355,7 @@ endif
        write(*,*) 'maxval complex-real     : ',maxval(abs(Slater_Coulomb_c-Slater_Coulomb_r))
        write(*,*) 'critical'
        stop
-     endif
+    endif
      Slater_Coulomb_c=conjg(Slater_Coulomb_c) !we always use the conjugate of Slater_Coulomb_c
 #endif
      inquire(file='Uc.dat.ED.matrix',exist=use_precomputed_slater_matrix)
@@ -1359,7 +1376,25 @@ endif
        close(71123)
      endif
      write(log_unit,*) '#############################################'
+  endif
+  inquire(file='Hint.dat',exist=flag_slater_int)
+  if(flag_slater_int)then
+     if(allocated(Slater_Coulomb_r)) deallocate(Slater_Coulomb_r)
+     write(*,*) 'read Hint.dat'
+     open(unit=71123,file='Hint.dat')
+     allocate(Slater_Coulomb_r(UUmatrix_in_size,UUmatrix_in_size,UUmatrix_in_size,UUmatrix_in_size))
+     allocate(Slater_Coulomb_c( UUmatrix_in_size,UUmatrix_in_size,UUmatrix_in_size,UUmatrix_in_size))
+       do ii = 1, UUmatrix_in_size**4
+          read(71123,*) g1,g2,g3,g4,aa
+          write(*,*) g1,g2,g3,g4,aa
+          Slater_Coulomb_r(g1,g2,g3,g4) = aa /2.
+          Slater_Coulomb_c(g1,g2,g3,g4) = aa /2.
+       enddo
+       close(71123)
     endif
+    call generate_UC_dat_files(UUmatrix_in_size,Slater_Coulomb_c)
+     write(log_unit,*) '#############################################'
+
 
     donot_compute_holepart=.false.
     if(present(donot_compute_holepart_))then
@@ -1547,5 +1582,4 @@ endif
 !**************************************************************************
 !**************************************************************************
 !**************************************************************************
-
 END MODULE

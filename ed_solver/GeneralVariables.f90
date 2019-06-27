@@ -7,9 +7,9 @@ module genvar
 
 
 !******************************************************************
-!variables d utilite generale 
+!variables d utilite generale
 
-CHARACTER(LEN=100)                       :: LOGfile ! LOG FILE NAME 
+CHARACTER(LEN=100)                       :: LOGfile ! LOG FILE NAME
 
 integer                                  :: alternate_display_count=0,alternate_display_cycle=5
 logical                                  :: flag_alternate_display=.false.,flag_introduce_only_noise_in_minimization=.false.
@@ -50,7 +50,7 @@ logical                                  :: strongstop=.false.
 logical                                  :: enable_mpi_dot=.false.
 logical                                  :: flag_use_invmat_jordan=.false.,flag_use_invmat_jordan_real=.false.
 
-integer                                  :: MAX_INT  = huge(1) 
+integer                                  :: MAX_INT  = huge(1)
 real(8),parameter                        :: MAX_REAL = huge(1.d0)
 real(8),parameter                        :: MAX_EXP  =  700.d0
 real(8),parameter                        :: MIN_EXP  = -700.d0
@@ -68,7 +68,7 @@ integer                                  :: iseed=41845213
 logical                                  :: testing=.false.
 logical                                  :: MPIseparate=.false.
 complex(8),parameter                     :: imi  = CMPLX( 0.d0 , 1.0d0,8)
-complex(8),parameter                     :: jimi = CMPLX(-0.5d0, 0.5d0*SQRT(3.d0),8) 
+complex(8),parameter                     :: jimi = CMPLX(-0.5d0, 0.5d0*SQRT(3.d0),8)
 
 
 INTEGER,      PARAMETER                 :: iwprint=47         ! arbitrary frequency (to print debug)
@@ -97,10 +97,10 @@ CHARACTER(LEN=9), PARAMETER             :: ADVANCED   = 'ADVANCED  '
   REAL(DBL)                               :: pi2,oneoverpi,s2,s3,s6
   REAL(DBL)                               :: one_over_clock_rate
 
-  INTEGER                                 :: log_unit 
+  INTEGER                                 :: log_unit
   INTEGER,    ALLOCATABLE                 :: ramp_proc(:),all_log_unit(:)
 
-  LOGICAL                                 :: verbosemain=.true.
+  LOGICAL                                 :: verbosemain=.false.
 
 !******************************************************************
 
@@ -117,7 +117,3 @@ integer                                  :: status(MPI_STATUS_SIZE)
 
 
 end module
-
-
-
-
