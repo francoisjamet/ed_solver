@@ -258,7 +258,6 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      if(rank==0) write(*,*) 'OMEGA / FREQ / TOT  = ', kkk_,i_,j_
 
      do i=1,nsector
-
        call loop_index_verbose
        call fix_dim
        call fix_bounds
@@ -537,7 +536,7 @@ subroutine init
      !stop
 
      PHI_EPS=0.00001
-     cutoff=1.d-7
+     cutoff=1.d-3
      def=0.d0
      path=.true.
 
