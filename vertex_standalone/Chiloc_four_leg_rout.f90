@@ -124,7 +124,7 @@ integer    :: mu,pu,md,pd
 real(8)    :: cutoff
 real(8)    :: d1,d2
 real(8)    :: cc_cutoff,cc
-
+real(8) :: st,ft
 !various notation for the same thing
 u_=k_;
 d_=l_;
@@ -153,177 +153,237 @@ pDNDN = CMPLX(0.d0,0.d0);pUPDN = CMPLX(0.d0,0.d0)
 
        cDNDN = CMPLX(0.d0,0.d0)
 
-        if(bypass.or.ndn/=sites) then
-            diml = dim_E_pdn ;
-            dimk = dim_E_i;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
-               do l =1, diml;
-               cc =  cp_i_cddn(k_,l,+stati) *  cp_i_cddn(k_,j,+stati)
-               if( abs(cc) < cc_cutoff ) cycle
-               do k =1, dimk;
-                xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,j,+stati)* cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
-            enddo;enddo;enddo
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_i_cddn(k_,j,+stati) *  cp_i_cddn(k_,l,+stati)
-                  if( abs(cc) < cc_cutoff ) cycle
-                  do k =1, dimk;
-                yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
+       if(bypass.or.ndn/=sites) then
+          diml = dim_E_pdn ;
+          dimk = dim_E_i;
+          dimj = dim_E_pdn;
+          call cpu_time(st)
+          do j =1, dimj;
+             do l =1, diml;
+                cc =  cp_i_cddn(k_,l,+stati) *  cp_i_cddn(k_,j,+stati)
+                if( abs(cc) < cc_cutoff ) cycle
+                do k =1, dimk;
+                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
+                   xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
+                   cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,j,+stati)* cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,1,ft-st
+          call cpu_time(st)
+          do j =1, dimj;
+             do l =1, diml;
+                cc =  cp_i_cddn(k_,j,+stati) *  cp_i_cddn(k_,l,+stati)
+                if( abs(cc) < cc_cutoff ) cycle
+                do k =1, dimk;
+                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
+                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
 
-                cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,j,+stati);
-            enddo;enddo;enddo
-        endif
+                   cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,j,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,2,ft-st
+       endif
 
 
         if(bypass.or.(ndn/=sites .and. ndn/=0))then
-            diml = dim_E_pdn;
-            dimk = dim_E_i;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_i_cddn(k_,l,+stati) *  cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-                     xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                     xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                     cDNDN = cDNDN +  (xi1+xi2)* cp_mdn_cddn(k_,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
-            enddo;enddo;enddo
+           diml = dim_E_pdn;
+           dimk = dim_E_i;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do l =1, diml;
+                 cc =  cp_i_cddn(k_,l,+stati) *  cp_mdn_cddn(k_,stati,+j)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
+                    xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN = cDNDN +  (xi1+xi2)* cp_mdn_cddn(k_,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,3,ft-st
 
-            diml = dim_E_mdn;
-            dimk = dim_E_pdn;
-            dimj = dim_E_i;
+           diml = dim_E_mdn;
+           dimk = dim_E_pdn;
+           dimj = dim_E_i;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_i_cddn(k_,k,+stati) *  cp_mdn_cddn(k_,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-                     yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                     yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                     cDNDN = cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k_,k,+stati);
-            enddo;enddo;enddo
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_i_cddn(k_,k,+stati) *  cp_mdn_cddn(k_,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
+                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN = cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k_,k,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,4,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_i;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-               do l =1, diml;
+           diml = dim_E_pdn;
+           dimk = dim_E_i;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do l =1, diml;
 
-                  cc =  cp_mdn_cddn(k_,stati,+j) *  cp_i_cddn(k_,l,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-               do k =1, dimk;
+                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_i_cddn(k_,l,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
 
-                xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_mdn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+j);
-            enddo;enddo;enddo
+                    xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
+                    xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_mdn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,5,ft-st
 
-            diml = dim_E_i;
-            dimk = dim_E_pdn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-               do k =1, dimk;
-                  cc =  cp_mdn_cddn(k_,stati,+j) *  cp_i_cddn(k_,k,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do l =1, diml;
-                yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
-                yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w1,w3,w2,PHI_EPS);
-                cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,k,+stati)* cp_i_cddn(k_,k,+l) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j);
-            enddo;enddo;enddo
+           diml = dim_E_i;
+           dimk = dim_E_pdn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
+                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_i_cddn(k_,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
+                    yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,k,+stati)* cp_i_cddn(k_,k,+l) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,6,ft-st
         endif
 
         if(bypass.or.ndn<sites-1)then
 
-            diml = dim_E_p2dn;
-            dimk = dim_E_pdn;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
-               do k =1, dimk;
-                  cc =  cp_i_cddn(k_,j,+stati) *  cp_i_cddn(k_,k,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-            do l =1, diml;
-                yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w1,w3,PHI_EPS);
-                yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w3,w1,PHI_EPS);
-                cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(k_,l,+j) * cp_i_cddn(k_,j,+stati);
-            enddo;enddo;enddo
-            diml = dim_E_pdn;
-            dimk = dim_E_p2dn;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_i_cddn(k_,l,+stati) *  cp_i_cddn(k_,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
+           diml = dim_E_p2dn;
+           dimk = dim_E_pdn;
+           dimj = dim_E_pdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
+                 cc =  cp_i_cddn(k_,j,+stati) *  cp_i_cddn(k_,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w1,w3,PHI_EPS);
+                    yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(k_,l,+j) * cp_i_cddn(k_,j,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,7,ft-st
+           diml = dim_E_pdn;
+           dimk = dim_E_p2dn;
+           dimj = dim_E_pdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do l =1, diml;
+                 cc =  cp_i_cddn(k_,l,+stati) *  cp_i_cddn(k_,j,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
 
-                xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
-                xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
-                cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k_,k,+l) * cp_i_cddn(k_,l,+stati);
-            enddo;enddo;enddo
+                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
+                    xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k_,k,+l) * cp_i_cddn(k_,l,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,8,ft-st
         endif
 
         if(bypass.or.ndn>1)then
-            diml = dim_E_mdn;
-            dimk = dim_E_mdn;
-            dimj = dim_E_m2dn;
+           diml = dim_E_mdn;
+           dimk = dim_E_mdn;
+           dimj = dim_E_m2dn;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(k_,stati,+k) *  cp_mdn_cddn(k_,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-                     yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
-                     yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
-                     cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+k);
-                  enddo;enddo;enddo
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(k_,stati,+k) *  cp_mdn_cddn(k_,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
+                    yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,9,ft-st
 
-            diml = dim_E_mdn;
-            dimk = dim_E_m2dn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
+           diml = dim_E_mdn;
+           dimk = dim_E_m2dn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(k_,stati,+j) *  cp_mdn_cddn(k_,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-            do k =1, dimk;
-                yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+j);
-            enddo;enddo;enddo
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_mdn_cddn(k_,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
+                    yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,10,ft-st
         endif
 
         if(bypass.or.ndn/=0)then
 
-            diml = dim_E_i;
-            dimk = dim_E_mdn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-            do k =1, dimk;
+           diml = dim_E_i;
+           dimk = dim_E_mdn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
 
-                  cc =  cp_mdn_cddn(k_,stati,+j) *  cp_mdn_cddn(k_,stati,+k)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do l =1, diml;
-                xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w1,w2,w3,PHI_EPS);
-                xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
-                cDNDN =cDNDN+  (xi1+xi2)* cp_mdn_cddn(k_,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j);
-            enddo;enddo;enddo
+                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_mdn_cddn(k_,stati,+k)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w1,w2,w3,PHI_EPS);
+                    xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (xi1+xi2)* cp_mdn_cddn(k_,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,11,ft-st
 
-            diml = dim_E_mdn;
-            dimk = dim_E_mdn;
-            dimj = dim_E_i;
+           diml = dim_E_mdn;
+           dimk = dim_E_mdn;
+           dimj = dim_E_i;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(k_,stati,+k) *  cp_mdn_cddn(k_,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-                yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
-                yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
-                cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+k);
-           enddo;enddo;enddo
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(k_,stati,+k) *  cp_mdn_cddn(k_,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
+                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,12,ft-st
         endif
 
         pDNDN = pDNDN+cDNDN*boltzZ;
@@ -367,531 +427,711 @@ pDNDN = CMPLX(0.d0,0.d0);pUPDN = CMPLX(0.d0,0.d0)
 !  22   5      3   2   1         -u  +d  -d  +u   ki   -1
 !  23   5      3   2   1         +d  -d  +u  -u   li   -1
 
-        if(bypass.or.ndn/=sites) then
-            diml = dim_E_pdn ;
-            dimk = dim_E_i;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
+       if(bypass.or.ndn/=sites) then
+          diml = dim_E_pdn ;
+          dimk = dim_E_i;
+          dimj = dim_E_pdn;
+          call cpu_time(st)
+          do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cddn(l2,l,+stati) *  cp_i_cddn(k1,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-            do k =1, dimk;
-               xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                cDNDN =cDNDN+  (xi1)* cp_i_cddn(k1,j,+stati)* cp_i_cddn(k2,j,+k) * cp_i_cddn(l1,l,+k) * cp_i_cddn(l2,l,+stati);
+             do l =1, diml;
+                cc =  cp_i_cddn(l2,l,+stati) *  cp_i_cddn(k1,j,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do k =1, dimk;
+                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
+                   cDNDN =cDNDN+  (xi1)* cp_i_cddn(k1,j,+stati)* cp_i_cddn(k2,j,+k) * cp_i_cddn(l1,l,+k) * cp_i_cddn(l2,l,+stati);
 
-                xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                cDNDN =cDNDN+  (xi2)* cp_i_cddn(l1,j,+stati)* cp_i_cddn(k2,j,+k) * cp_i_cddn(k1,l,+k) * cp_i_cddn(l2,l,+stati);
+                   xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
+                   cDNDN =cDNDN+  (xi2)* cp_i_cddn(l1,j,+stati)* cp_i_cddn(k2,j,+k) * cp_i_cddn(k1,l,+k) * cp_i_cddn(l2,l,+stati);
 
-            enddo;enddo;enddo
-            do j =1, dimj;
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,13,ft-st
+          call cpu_time(st)
+          do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cddn(k1,j,+stati) *  cp_i_cddn(k1,l,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  cc =  cp_i_cddn(k2,j,+stati) *  cp_i_cddn(l1,l,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                cDNDN =cDNDN+  ( yi1)* cp_i_cddn(l1,l,+stati)* cp_i_cddn(l2,l,+k) * cp_i_cddn(k1,j,+k) * cp_i_cddn(k2,j,+stati);
+             do l =1, diml;
+                cc =  cp_i_cddn(k1,j,+stati) *  cp_i_cddn(k1,l,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                cc =  cp_i_cddn(k2,j,+stati) *  cp_i_cddn(l1,l,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do k =1, dimk;
+                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
+                   cDNDN =cDNDN+  ( yi1)* cp_i_cddn(l1,l,+stati)* cp_i_cddn(l2,l,+k) * cp_i_cddn(k1,j,+k) * cp_i_cddn(k2,j,+stati);
 
-                yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                cDNDN =cDNDN+  (+yi2)* cp_i_cddn(k1,l,+stati)* cp_i_cddn(l2,l,+k) * cp_i_cddn(l1,j,+k) * cp_i_cddn(k1,j,+stati);
+                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
+                   cDNDN =cDNDN+  (+yi2)* cp_i_cddn(k1,l,+stati)* cp_i_cddn(l2,l,+k) * cp_i_cddn(l1,j,+k) * cp_i_cddn(k1,j,+stati);
 
-            enddo;enddo;enddo
-        endif
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,14,ft-st
+       endif
 
 
         if(bypass.or.(ndn/=sites .and. ndn/=0))then
-            diml = dim_E_pdn;
-            dimk = dim_E_i;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
+           diml = dim_E_pdn;
+           dimk = dim_E_i;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_mdn_cddn(pu,stati,+j)
-                  if (abs(cc) < cc_cutoff) cycle
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_mdn_cddn(pu,stati,+j)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-                     xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                     cDNDN = cDNDN + (xi1)* cp_mdn_cddn(pu,stati,+j)* cp_mdn_cddn(mu,k,+j) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
+              do l =1, diml;
+                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mdn_cddn(pu,stati,+j)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mdn_cddn(pu,stati,+j)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
+                    cDNDN = cDNDN + (xi1)* cp_mdn_cddn(pu,stati,+j)* cp_mdn_cddn(mu,k,+j) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
 
-                     xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                     cDNDN = cDNDN + (xi2)* cp_mdn_cddn(pu,stati,+j)* cp_mdn_cddn(md,k,+j) * cp_i_cddn(mu,l,+k) * cp_i_cddn(pd,l,+stati);
+                    xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN = cDNDN + (xi2)* cp_mdn_cddn(pu,stati,+j)* cp_mdn_cddn(md,k,+j) * cp_i_cddn(mu,l,+k) * cp_i_cddn(pd,l,+stati);
 
-                  enddo;enddo;enddo
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,15,ft-st
 
-            diml = dim_E_mdn;
-            dimk = dim_E_pdn;
-            dimj = dim_E_i;
+           diml = dim_E_mdn;
+           dimk = dim_E_pdn;
+           dimj = dim_E_i;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_i_cddn(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  cc =  cp_i_cddn(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-                     yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                     cDNDN = cDNDN+  (yi1)* cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_i_cddn(mu,k,+j) * cp_i_cddn(pu,k,+stati);
-                     yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                     cDNDN = cDNDN+  (+yi2)* cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(mu,j,+l) * cp_i_cddn(md,k,+j) * cp_i_cddn(pu,k,+stati);
-            enddo;enddo;enddo
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_i_cddn(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_i_cddn(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
+                    cDNDN = cDNDN+  (yi1)* cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_i_cddn(mu,k,+j) * cp_i_cddn(pu,k,+stati);
+                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN = cDNDN+  (+yi2)* cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(mu,j,+l) * cp_i_cddn(md,k,+j) * cp_i_cddn(pu,k,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,16,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_i;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-            do k =1, dimk;
-            do l =1, diml;
-                xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                cDNDN =cDNDN+  (xi1)* cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mdn_cddn(pu,k,+j) * cp_mdn_cddn(mu,stati,+j);
+           diml = dim_E_pdn;
+           dimk = dim_E_i;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
+                 do l =1, diml;
+                    xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
+                    cDNDN =cDNDN+  (xi1)* cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mdn_cddn(pu,k,+j) * cp_mdn_cddn(mu,stati,+j);
 
-                xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                cDNDN =cDNDN+  (+xi2)* cp_i_cddn(mu,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mdn_cddn(pu,k,+j) * cp_mdn_cddn(md,stati,+j);
+                    xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (+xi2)* cp_i_cddn(mu,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mdn_cddn(pu,k,+j) * cp_mdn_cddn(md,stati,+j);
 
-            enddo;enddo;enddo
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,17,ft-st
 
-            diml = dim_E_i;
-            dimk = dim_E_pdn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-            do k =1, dimk;
-               cc =  cp_mdn_cddn(mu,stati,+j) *  cp_i_cddn(md,k,+stati)
-               if (abs(cc) < cc_cutoff) cycle
-               cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cddn(mu,k,+stati)
-               if (abs(cc) < cc_cutoff) cycle
-               do l =1, diml;
-                yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
-                cDNDN =cDNDN+  (yi1)* cp_i_cddn(mu,k,+stati)* cp_i_cddn(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-                yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w1,w3,w2,PHI_EPS);
-                cDNDN =cDNDN+  (yi2)* cp_i_cddn(md,k,+stati)* cp_i_cddn(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(mu,stati,+j);
-            enddo;enddo;enddo
+           diml = dim_E_i;
+           dimk = dim_E_pdn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
+                 cc =  cp_mdn_cddn(mu,stati,+j) *  cp_i_cddn(md,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cddn(mu,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
+                    cDNDN =cDNDN+  (yi1)* cp_i_cddn(mu,k,+stati)* cp_i_cddn(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
+                    yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN =cDNDN+  (yi2)* cp_i_cddn(md,k,+stati)* cp_i_cddn(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(mu,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,19,ft-st
         endif
 
         if(bypass.or.ndn<sites-1)then
 
-            diml = dim_E_p2dn;
-            dimk = dim_E_pdn;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
-            do k =1, dimk;
+           diml = dim_E_p2dn;
+           dimk = dim_E_pdn;
+           dimj = dim_E_pdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
 
-               cc =  cp_i_cddn(pu,j,+stati) *  cp_i_cddn(mu,k,+stati)
-               if (abs(cc) < cc_cutoff) cycle
-               cc =  cp_i_cddn(pu,j,+stati) *  cp_i_cddn(md,k,+stati)
-               if (abs(cc) < cc_cutoff) cycle
-               do l =1, diml;
-               yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w1,w3,PHI_EPS);
-               cDNDN =cDNDN+  ( yi1) * cp_i_cddn(mu,k,+stati)* cp_pdn_cddn(md,l,+k) * cp_pdn_cddn(pd,l,+j) * cp_i_cddn(pu,j,+stati);
-               yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w3,w1,PHI_EPS);
-               cDNDN =cDNDN+  (+yi2) * cp_i_cddn(md,k,+stati)* cp_pdn_cddn(mu,l,+k) * cp_pdn_cddn(pd,l,+j) * cp_i_cddn(pu,j,+stati);
-            enddo;enddo;enddo
-            diml = dim_E_pdn;
-            dimk = dim_E_p2dn;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
+                 cc =  cp_i_cddn(pu,j,+stati) *  cp_i_cddn(mu,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_i_cddn(pu,j,+stati) *  cp_i_cddn(md,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w1,w3,PHI_EPS);
+                    cDNDN =cDNDN+  ( yi1) * cp_i_cddn(mu,k,+stati)* cp_pdn_cddn(md,l,+k) * cp_pdn_cddn(pd,l,+j) * cp_i_cddn(pu,j,+stati);
+                    yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (+yi2) * cp_i_cddn(md,k,+stati)* cp_pdn_cddn(mu,l,+k) * cp_pdn_cddn(pd,l,+j) * cp_i_cddn(pu,j,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,20,ft-st
+           diml = dim_E_pdn;
+           dimk = dim_E_p2dn;
+           dimj = dim_E_pdn;
+           call cpu_time(st)
+           do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(mu,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-                     xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
-                     cDNDN =cDNDN+  (xi1)* cp_i_cddn(md,j,+stati)* cp_pdn_cddn(mu,k,+j) * cp_pdn_cddn(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-                     xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
-                     cDNDN =cDNDN+  (xi2)* cp_i_cddn(mu,j,+stati)* cp_pdn_cddn(md,k,+j) * cp_pdn_cddn(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-                  enddo;enddo;enddo
+              do l =1, diml;
+                 cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(mu,j,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
+                    cDNDN =cDNDN+  (xi1)* cp_i_cddn(md,j,+stati)* cp_pdn_cddn(mu,k,+j) * cp_pdn_cddn(pu,k,+l) * cp_i_cddn(pd,l,+stati);
+                    xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN =cDNDN+  (xi2)* cp_i_cddn(mu,j,+stati)* cp_pdn_cddn(md,k,+j) * cp_pdn_cddn(pu,k,+l) * cp_i_cddn(pd,l,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,21,ft-st
         endif
 
         if(bypass.or.ndn>1)then
-            diml = dim_E_mdn;
-            dimk = dim_E_mdn;
-            dimj = dim_E_m2dn;
+           diml = dim_E_mdn;
+           dimk = dim_E_mdn;
+           dimj = dim_E_m2dn;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  cc =  cp_mdn_cddn(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-            do j =1, dimj;
-               yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
-                cDNDN =cDNDN+  (yi1)* cp_mdn_cddn(pd,stati,+l)* cp_m2dn_cddn(pu,l,+j) * cp_m2dn_cddn(mu,k,+j) * cp_mdn_cddn(md,stati,+k);
-                yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
-                cDNDN =cDNDN+  (yi2)* cp_mdn_cddn(pd,stati,+l)* cp_m2dn_cddn(pu,l,+j) * cp_m2dn_cddn(md,k,+j) * cp_mdn_cddn(mu,stati,+k);
-            enddo;enddo;enddo
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_mdn_cddn(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
+                    cDNDN =cDNDN+  (yi1)* cp_mdn_cddn(pd,stati,+l)* cp_m2dn_cddn(pu,l,+j) * cp_m2dn_cddn(mu,k,+j) * cp_mdn_cddn(md,stati,+k);
+                    yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (yi2)* cp_mdn_cddn(pd,stati,+l)* cp_m2dn_cddn(pu,l,+j) * cp_m2dn_cddn(md,k,+j) * cp_mdn_cddn(mu,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,22,ft-st
 
-            diml = dim_E_mdn;
-            dimk = dim_E_m2dn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(mu,stati,+j) *  cp_mdn_cddn(pu,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  cc =  cp_mdn_cddn(md,stati,+j) *  cp_mdn_cddn(pu,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-                     yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                     cDNDN = cDNDN+  ( yi1)* cp_mdn_cddn(pu,stati,+l)* cp_m2dn_cddn(pd,l,+k) * cp_m2dn_cddn(md,j,+k) * cp_mdn_cddn(mu,stati,+j);
-                     yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                     cDNDN = cDNDN+  (+yi2)* cp_mdn_cddn(pu,stati,+l)* cp_m2dn_cddn(pd,l,+k) * cp_m2dn_cddn(mu,j,+k) * cp_mdn_cddn(md,stati,+j);
-                  enddo;enddo;enddo
+           diml = dim_E_mdn;
+           dimk = dim_E_m2dn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(mu,stati,+j) *  cp_mdn_cddn(pu,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mdn_cddn(pu,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
+                    cDNDN = cDNDN+  ( yi1)* cp_mdn_cddn(pu,stati,+l)* cp_m2dn_cddn(pd,l,+k) * cp_m2dn_cddn(md,j,+k) * cp_mdn_cddn(mu,stati,+j);
+                    yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
+                    cDNDN = cDNDN+  (+yi2)* cp_mdn_cddn(pu,stati,+l)* cp_m2dn_cddn(pd,l,+k) * cp_m2dn_cddn(mu,j,+k) * cp_mdn_cddn(md,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,23,ft-st
         endif
 
         if(bypass.or.ndn/=0)then
 
-            diml = dim_E_i;
-            dimk = dim_E_mdn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-               do k =1, dimk;
+           diml = dim_E_i;
+           dimk = dim_E_mdn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
 
-                  cc =  cp_mdn_cddn(mu,stati,+j) *  cp_mdn_cddn(pu,stati,+k)
-                  if (abs(cc) < cc_cutoff) cycle
-                  cc =  cp_mdn_cddn(md,stati,+j) *  cp_mdn_cddn(pu,stati,+k)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do l =1, diml;
-                     xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w1,w2,w3,PHI_EPS);
-                     cDNDN =cDNDN+  (xi1)* cp_mdn_cddn(pu,stati,+k) * cp_mdn_cddn(md,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(mu,stati,+j);
-                     xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
-                     cDNDN =cDNDN+  (xi2)* cp_mdn_cddn(pu,stati,+k) * cp_mdn_cddn(mu,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-                  enddo;enddo;enddo
+                 cc =  cp_mdn_cddn(mu,stati,+j) *  cp_mdn_cddn(pu,stati,+k)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mdn_cddn(pu,stati,+k)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w1,w2,w3,PHI_EPS);
+                    cDNDN =cDNDN+  (xi1)* cp_mdn_cddn(pu,stati,+k) * cp_mdn_cddn(md,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(mu,stati,+j);
+                    xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (xi2)* cp_mdn_cddn(pu,stati,+k) * cp_mdn_cddn(mu,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,24,ft-st
 
-            diml = dim_E_mdn;
-            dimk = dim_E_mdn;
-            dimj = dim_E_i;
+           diml = dim_E_mdn;
+           dimk = dim_E_mdn;
+           dimj = dim_E_i;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                if (abs(cc) < cc_cutoff) cycle
-                cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                if (abs(cc) < cc_cutoff) cycle
-                do j =1, dimj;
-                yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
-                cDNDN =cDNDN+  ( yi1)* cp_mdn_cddn(pd,stati,+l) * cp_mdn_cddn(mu,j,+l) * cp_mdn_cddn(pu,j,+k) * cp_mdn_cddn(md,stati,+k);
-                yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
-                cDNDN =cDNDN+  (+yi2)* cp_mdn_cddn(pd,stati,+l) * cp_mdn_cddn(md,j,+l) * cp_mdn_cddn(pu,j,+k) * cp_mdn_cddn(mu,stati,+k);
-           enddo;enddo;enddo
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
+                    cDNDN =cDNDN+  ( yi1)* cp_mdn_cddn(pd,stati,+l) * cp_mdn_cddn(mu,j,+l) * cp_mdn_cddn(pu,j,+k) * cp_mdn_cddn(md,stati,+k);
+                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
+                    cDNDN =cDNDN+  (+yi2)* cp_mdn_cddn(pd,stati,+l) * cp_mdn_cddn(md,j,+l) * cp_mdn_cddn(pu,j,+k) * cp_mdn_cddn(mu,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,25,ft-st
         endif
         pDNDN = pDNDN+cDNDN*boltzZ;
 
-    endif
+     endif
 
 
 ! **** UPDN *****************************************************************************
 
     if(op == 2)then
-        cUPDN = CMPLX(0.d0,0.d0)
-        if(bypass.or.(ndn/=sites .and. nup /= sites))then
-            diml = dim_E_pdn;
-            dimk = dim_E_i;
-            dimj = dim_E_pup;
-            do j =1, dimj;
+       cUPDN = CMPLX(0.d0,0.d0)
+       if(bypass.or.(ndn/=sites .and. nup /= sites))then
+          diml = dim_E_pdn;
+          dimk = dim_E_i;
+          dimj = dim_E_pup;
+          call cpu_time(st)
+          do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cdup(mu,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-              cUPDN =cUPDN + xi1 * cp_i_cdup(mu,j,+stati)* cp_i_cdup(pu,j,+k) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
-            enddo;enddo;enddo
+             do l =1, diml;
+                cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cdup(mu,j,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do k =1, dimk;
+                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
+                   cUPDN =cUPDN + xi1 * cp_i_cdup(mu,j,+stati)* cp_i_cdup(pu,j,+k) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,26,ft-st
 
-            dimj = dim_E_pup;
-            dimk = dim_E_i;
-            diml = dim_E_pdn;
-            do j =1, dimj;
+          dimj = dim_E_pup;
+          dimk = dim_E_i;
+          diml = dim_E_pdn;
+          call cpu_time(st)
+          do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cddn(md,l,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-             cUPDN =cUPDN + xi1 * cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_i_cdup(mu,j,+k) * cp_i_cdup(pu,j,+stati);
-            enddo;enddo;enddo
+             do l =1, diml;
+                cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cddn(md,l,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do k =1, dimk;
+                   xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
+                   cUPDN =cUPDN + xi1 * cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_i_cdup(mu,j,+k) * cp_i_cdup(pu,j,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,27,ft-st
 
-            diml = dim_E_puppdn;
-            dimk = dim_E_pup;
-            dimj = dim_E_pup;
-            do j =1, dimj;
-            do k =1, dimk;
-               cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cdup(mu,k,+stati)
-               if (abs(cc) < cc_cutoff) cycle
-               do l =1, diml;
-               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pup_E(k),cp_puppdn_E(l),w2,w1,w3,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_i_cdup(mu,k,+stati)* cp_pup_cddn(md,l,+k) * cp_pup_cddn(pd,l,+j) * cp_i_cdup(pu,j,+stati);
-            enddo;enddo;enddo
+          diml = dim_E_puppdn;
+          dimk = dim_E_pup;
+          dimj = dim_E_pup;
+          call cpu_time(st)
+          do j =1, dimj;
+             do k =1, dimk;
+                cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cdup(mu,k,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do l =1, diml;
+                   xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pup_E(k),cp_puppdn_E(l),w2,w1,w3,PHI_EPS);
+                   cUPDN =cUPDN - xi1 * cp_i_cdup(mu,k,+stati)* cp_pup_cddn(md,l,+k) * cp_pup_cddn(pd,l,+j) * cp_i_cdup(pu,j,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,28,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_puppdn;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1   = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_puppdn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
-                cUPDN = cUPDN + xi1 * cp_i_cddn(md,j,+stati)* cp_pdn_cdup(mu,k,+j) * cp_pdn_cdup(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-            enddo;enddo;enddo
+          diml = dim_E_pdn;
+          dimk = dim_E_puppdn;
+          dimj = dim_E_pdn;
+          call cpu_time(st)
+          do j =1, dimj;
+             do l =1, diml;
+                cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do k =1, dimk;
+                   xi1   = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_puppdn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
+                   cUPDN = cUPDN + xi1 * cp_i_cddn(md,j,+stati)* cp_pdn_cdup(mu,k,+j) * cp_pdn_cdup(pu,k,+l) * cp_i_cddn(pd,l,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,29,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_puppdn;
-            dimj = dim_E_pup;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cdup(mu,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_puppdn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_i_cdup(mu,j,+stati)* cp_pup_cddn(md,k,+j) * cp_pdn_cdup(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-            enddo;enddo;enddo
+          diml = dim_E_pdn;
+          dimk = dim_E_puppdn;
+          dimj = dim_E_pup;
+          call cpu_time(st)
+          do j =1, dimj;
+             do l =1, diml;
+                cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cdup(mu,j,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do k =1, dimk;
+                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_puppdn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
+                   cUPDN =cUPDN - xi1 * cp_i_cdup(mu,j,+stati)* cp_pup_cddn(md,k,+j) * cp_pdn_cdup(pu,k,+l) * cp_i_cddn(pd,l,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,30,ft-st
 
-            diml = dim_E_puppdn;
-            dimk = dim_E_pdn;
-            dimj = dim_E_pup;
-            do j =1, dimj;
-            do k =1, dimk;
+          diml = dim_E_puppdn;
+          dimk = dim_E_pdn;
+          dimj = dim_E_pup;
+          call cpu_time(st)
+          do j =1, dimj;
+             do k =1, dimk;
 
-                  cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cddn(md,k,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-               do l =1, diml;
-               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pdn_E(k),cp_puppdn_E(l),w2,w3,w1,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_i_cddn(md,k,+stati)* cp_pdn_cdup(mu,l,+k) * cp_pup_cddn(pd,l,+j) * cp_i_cdup(pu,j,+stati);
-            enddo;enddo;enddo
-        endif
+                cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cddn(md,k,+stati)
+                if (abs(cc) < cc_cutoff) cycle
+                do l =1, diml;
+                   xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pdn_E(k),cp_puppdn_E(l),w2,w3,w1,PHI_EPS);
+                   cUPDN =cUPDN + xi1 * cp_i_cddn(md,k,+stati)* cp_pdn_cdup(mu,l,+k) * cp_pup_cddn(pd,l,+j) * cp_i_cdup(pu,j,+stati);
+                enddo
+             enddo
+          enddo
+          call cpu_time(ft)
+          print*,31,ft-st
+       endif
 
         if(bypass.or.(ndn/=sites .and. nup /= 0)) then
-            diml = dim_E_muppdn;
-            dimk = dim_E_mup;
-            dimj = dim_E_mup;
-            do j =1, dimj;
-            do k =1, dimk;
+           diml = dim_E_muppdn;
+           dimk = dim_E_mup;
+           dimj = dim_E_mup;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
 
-                  cc =  cp_mup_cdup(mu,stati,+j) *  cp_mup_cdup(pu,stati,+k)
-                  if (abs(cc) < cc_cutoff) cycle
-               do l =1, diml;
-               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_mup_E(k),cp_muppdn_E(l),w1,w2,w3,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+k)* cp_mup_cddn(md,l,+k) * cp_mup_cddn(pd,l,+j) * cp_mup_cdup(mu,stati,+j);
-            enddo;enddo;enddo
+                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_mup_cdup(pu,stati,+k)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_mup_E(k),cp_muppdn_E(l),w1,w2,w3,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+k)* cp_mup_cddn(md,l,+k) * cp_mup_cddn(pd,l,+j) * cp_mup_cdup(mu,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,32,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_i;
-            dimj = dim_E_mup;
-            do j =1, dimj;
+           diml = dim_E_pdn;
+           dimk = dim_E_i;
+           dimj = dim_E_mup;
+           call cpu_time(st)
+           do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_mup_cdup(pu,stati,+j)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+j)* cp_mup_cdup(mu,k,+j) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
-            enddo;enddo;enddo
+              do l =1, diml;
+                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mup_cdup(pu,stati,+j)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+j)* cp_mup_cdup(mu,k,+j) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,33,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_i;
-            dimj = dim_E_mup;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_mup_cdup(mu,stati,+j) *  cp_i_cddn(md,l,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mup_cdup(pu,k,+j) * cp_mup_cdup(mu,stati,+j);
-            enddo;enddo;enddo
-            diml = dim_E_muppdn;
-            dimk = dim_E_pdn;
-            dimj = dim_E_mup;
-            do j =1, dimj;
-            do k =1, dimk;
+           diml = dim_E_pdn;
+           dimk = dim_E_i;
+           dimj = dim_E_mup;
+           call cpu_time(st)
+           do j =1, dimj;
+              do l =1, diml;
+                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_i_cddn(md,l,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mup_cdup(pu,k,+j) * cp_mup_cdup(mu,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,34,ft-st
+           diml = dim_E_muppdn;
+           dimk = dim_E_pdn;
+           dimj = dim_E_mup;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
 
-                  cc =  cp_mup_cdup(mu,stati,+j) *  cp_i_cddn(md,k,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-               do l =1, diml;
-               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_pdn_E(k),cp_muppdn_E(l),w1,w3,w2,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_i_cddn(md,k,+stati)* cp_muppdn_cdup(pu,k,+l) * cp_mup_cddn(pd,l,+j) * cp_mup_cdup(mu,stati,+j);
-            enddo;enddo;enddo
+                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_i_cddn(md,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_pdn_E(k),cp_muppdn_E(l),w1,w3,w2,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_i_cddn(md,k,+stati)* cp_muppdn_cdup(pu,k,+l) * cp_mup_cddn(pd,l,+j) * cp_mup_cdup(mu,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,35,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_muppdn;
-            dimj = dim_E_mup;
-            do j =1, dimj;
+           diml = dim_E_pdn;
+           dimk = dim_E_muppdn;
+           dimj = dim_E_mup;
+           call cpu_time(st)
+           do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_mup_cdup(pu,stati,+j)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_muppdn_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+j)* cp_mup_cddn(md,k,+j) * cp_muppdn_cdup(mu,l,+k) * cp_i_cddn(pd,l,+stati);
-            enddo;enddo;enddo
+              do l =1, diml;
+                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mup_cdup(pu,stati,+j)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_muppdn_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+j)* cp_mup_cddn(md,k,+j) * cp_muppdn_cdup(mu,l,+k) * cp_i_cddn(pd,l,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,36,ft-st
 
-            diml = dim_E_pdn;
-            dimk = dim_E_muppdn;
-            dimj = dim_E_pdn;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-                     xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_muppdn_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                     cUPDN =cUPDN - xi1 * cp_i_cddn(md,j,+stati)* cp_muppdn_cdup(pu,j,+k) * cp_muppdn_cdup(mu,l,+k) * cp_i_cddn(pd,l,+stati);
-            enddo;enddo;enddo
+           diml = dim_E_pdn;
+           dimk = dim_E_muppdn;
+           dimj = dim_E_pdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do l =1, diml;
+                 cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_muppdn_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_i_cddn(md,j,+stati)* cp_muppdn_cdup(pu,j,+k) * cp_muppdn_cdup(mu,l,+k) * cp_i_cddn(pd,l,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,37,ft-st
         endif
 
         if(bypass.or.(ndn/=0 .and. nup /= sites))then
-            diml = dim_E_mdn;
-            dimk = dim_E_mdn;
-            dimj = dim_E_pupmdn;
+           diml = dim_E_mdn;
+           dimk = dim_E_mdn;
+           dimj = dim_E_pupmdn;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-               xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cdup(mu,j,+l) * cp_mdn_cdup(pu,j,+k) * cp_mdn_cddn(md,stati,+k);
-            enddo;enddo;enddo
-            diml = dim_E_i;
-            dimk = dim_E_pup;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-            do k =1, dimk;
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cdup(mu,j,+l) * cp_mdn_cdup(pu,j,+k) * cp_mdn_cddn(md,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,38,ft-st
+           diml = dim_E_i;
+           dimk = dim_E_pup;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
 
-                  cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cdup(mu,k,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-               do l =1, diml;
-               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pup_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_i_cdup(mu,k,+stati)* cp_i_cdup(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-            enddo;enddo;enddo
-            diml = dim_E_mdn;
-            dimk = dim_E_pup;
-            dimj = dim_E_i;
+                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cdup(mu,k,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pup_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_i_cdup(mu,k,+stati)* cp_i_cdup(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,39,ft-st
+           diml = dim_E_mdn;
+           dimk = dim_E_pup;
+           dimj = dim_E_i;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_i_cdup(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-               xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pup_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_i_cdup(mu,k,+j) * cp_i_cdup(pu,k,+stati);
-            enddo;enddo;enddo
-            diml = dim_E_mdn;
-            dimk = dim_E_pup;
-            dimj = dim_E_pupmdn;
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_i_cdup(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pup_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_i_cdup(mu,k,+j) * cp_i_cdup(pu,k,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,40,ft-st
+           diml = dim_E_mdn;
+           dimk = dim_E_pup;
+           dimj = dim_E_pupmdn;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_i_cdup(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-               xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_pup_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-              cUPDN =cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cdup(mu,j,+l) * cp_pupmdn_cddn(md,k,+j) * cp_i_cdup(pu,k,+stati);
-            enddo;enddo;enddo
-            diml = dim_E_pup;
-            dimk = dim_E_pupmdn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_i_cdup(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_pup_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cdup(mu,j,+l) * cp_pupmdn_cddn(md,k,+j) * cp_i_cdup(pu,k,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,41,ft-st
+           diml = dim_E_pup;
+           dimk = dim_E_pupmdn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cdup(mu,l,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do k =1, dimk;
-               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_pupmdn_E(k),cp_pup_E(l),w2,w3,w1,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_i_cdup(mu,l,+stati)* cp_pupmdn_cddn(pd,l,+k) * cp_mdn_cdup(pu,k,+j) * cp_mdn_cddn(md,stati,+j);
-            enddo;enddo;enddo
-            diml = dim_E_pup;
-            dimk = dim_E_pupmdn;
-            dimj = dim_E_pup;
-            do j =1, dimj;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cdup(mu,l,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_pupmdn_E(k),cp_pup_E(l),w2,w3,w1,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_i_cdup(mu,l,+stati)* cp_pupmdn_cddn(pd,l,+k) * cp_mdn_cdup(pu,k,+j) * cp_mdn_cddn(md,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,42,ft-st
+           diml = dim_E_pup;
+           dimk = dim_E_pupmdn;
+           dimj = dim_E_pup;
+           call cpu_time(st)
+           do j =1, dimj;
 
-               do l =1, diml;
-                  cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cdup(mu,l,+stati)
-                  if (abs(cc) < cc_cutoff) cycle
-            do k =1, dimk;
-               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_pupmdn_E(k),cp_pup_E(l),w3,w2,w1,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_i_cdup(mu,l,+stati)* cp_pupmdn_cddn(pd,l,+k) * cp_pupmdn_cddn(md,j,+k) * cp_i_cdup(pu,j,+stati);
-            enddo;enddo;enddo
+              do l =1, diml;
+                 cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cdup(mu,l,+stati)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_pupmdn_E(k),cp_pup_E(l),w3,w2,w1,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_i_cdup(mu,l,+stati)* cp_pupmdn_cddn(pd,l,+k) * cp_pupmdn_cddn(md,j,+k) * cp_i_cdup(pu,j,+stati);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,43,ft-st
         endif
 
         if(bypass.or.(ndn/=0 .and. nup /= 0))then
-            diml = dim_E_mdn;
-            dimk = dim_E_mdn;
-            dimj = dim_E_mupmdn;
+           diml = dim_E_mdn;
+           dimk = dim_E_mdn;
+           dimj = dim_E_mupmdn;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-               xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mupmdn_cdup(pu,l,+j) * cp_mupmdn_cdup(mu,k,+j) * cp_mdn_cddn(md,stati,+k);
-            enddo;enddo;enddo
-            diml = dim_E_mup;
-            dimk = dim_E_mupmdn;
-            dimj = dim_E_mup;
-            do j =1, dimj;
-
-               do l =1, diml;
-                  cc =  cp_mup_cdup(mu,stati,+j) *  cp_mup_cdup(pu,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-            do k =1, dimk;
-               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_mupmdn_E(k),cp_mup_E(l),w3,w1,w2,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+l)* cp_mupmdn_cddn(pd,l,+k) * cp_mupmdn_cddn(md,j,+k) * cp_mup_cdup(mu,stati,+j);
-           enddo;enddo;enddo
-            diml = dim_E_mup;
-            dimk = dim_E_mupmdn;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-               do l =1, diml;
-                  cc =  cp_mdn_cddn(md,stati,+j) *  cp_mup_cdup(pu,stati,+l)
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
                  if (abs(cc) < cc_cutoff) cycle
-            do k =1, dimk;
-               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_mupmdn_E(k),cp_mup_E(l),w1,w3,w2,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+l)* cp_mupmdn_cddn(pd,l,+k) * cp_mupmdn_cdup(mu,j,+k) * cp_mdn_cddn(md,stati,+j);
-            enddo;enddo;enddo
-            diml = dim_E_mdn;
-            dimk = dim_E_mup;
-            dimj = dim_E_mupmdn;
+                 do j =1, dimj;
+                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mupmdn_cdup(pu,l,+j) * cp_mupmdn_cdup(mu,k,+j) * cp_mdn_cddn(md,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,44,ft-st
+           diml = dim_E_mup;
+           dimk = dim_E_mupmdn;
+           dimj = dim_E_mup;
+           call cpu_time(st)
+           do j =1, dimj;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mup_cdup(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-               xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mup_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
-                cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mupmdn_cdup(pu,l,+j) * cp_mupmdn_cddn(md,k,+j) * cp_mup_cdup(mu,stati,+k);
-           enddo;enddo;enddo
-            diml = dim_E_i;
-            dimk = dim_E_mup;
-            dimj = dim_E_mdn;
-            do j =1, dimj;
-            do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_mup_cdup(pu,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_mupmdn_E(k),cp_mup_E(l),w3,w1,w2,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+l)* cp_mupmdn_cddn(pd,l,+k) * cp_mupmdn_cddn(md,j,+k) * cp_mup_cdup(mu,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,45,ft-st
+           diml = dim_E_mup;
+           dimk = dim_E_mupmdn;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do l =1, diml;
+                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mup_cdup(pu,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do k =1, dimk;
+                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_mupmdn_E(k),cp_mup_E(l),w1,w3,w2,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+l)* cp_mupmdn_cddn(pd,l,+k) * cp_mupmdn_cdup(mu,j,+k) * cp_mdn_cddn(md,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,46,ft-st
+           diml = dim_E_mdn;
+           dimk = dim_E_mup;
+           dimj = dim_E_mupmdn;
 
-                  cc =  cp_mdn_cddn(md,stati,+j) *  cp_mup_cdup(pu,stati,+k)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do l =1, diml;
-               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mup_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
-                cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+k)* cp_mup_cdup(mu,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-            enddo;enddo;enddo
-            diml = dim_E_mdn;
-            dimk = dim_E_mup;
-            dimj = dim_E_i;
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mup_cdup(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mup_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
+                    cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mupmdn_cdup(pu,l,+j) * cp_mupmdn_cddn(md,k,+j) * cp_mup_cdup(mu,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,47,ft-st
+           diml = dim_E_i;
+           dimk = dim_E_mup;
+           dimj = dim_E_mdn;
+           call cpu_time(st)
+           do j =1, dimj;
+              do k =1, dimk;
 
-            do k =1, dimk;
-               do l =1, diml;
-                  cc =  cp_mup_cdup(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                  if (abs(cc) < cc_cutoff) cycle
-                  do j =1, dimj;
-               xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mup_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
-                cUPDN = cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_mup_cdup(pu,j,+k) * cp_mup_cdup(mu,stati,+k);
-            enddo;enddo;enddo
+                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mup_cdup(pu,stati,+k)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do l =1, diml;
+                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mup_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
+                    cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+k)* cp_mup_cdup(mu,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,48,ft-st
+           diml = dim_E_mdn;
+           dimk = dim_E_mup;
+           dimj = dim_E_i;
+
+           call cpu_time(st)
+           do k =1, dimk;
+              do l =1, diml;
+                 cc =  cp_mup_cdup(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
+                 if (abs(cc) < cc_cutoff) cycle
+                 do j =1, dimj;
+                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mup_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
+                    cUPDN = cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_mup_cdup(pu,j,+k) * cp_mup_cdup(mu,stati,+k);
+                 enddo
+              enddo
+           enddo
+           call cpu_time(ft)
+           print*,ft-st
         endif
 
         pUPDN = pUPDN + cUPDN*boltzZ;
-    endif
-    enddo
+     endif
+  enddo
 
 contains
 
