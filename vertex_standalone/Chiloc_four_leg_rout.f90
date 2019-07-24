@@ -1,7 +1,8 @@
 module chitilde
+  Use omp_lib
 implicit none
 
-logical,parameter:: bypass=.false.
+
 
 contains
 
@@ -66,7 +67,7 @@ contains
       end function
 
 subroutine  chi_tilde_loc( &
- &    k_,k__,l_,l__,cutoff,op, w1,  w2,  w3, PHI_EPS, beta, Z, gsE, sites, nup, ndn, &
+ &    cutoff,op,  PHI_EPS, beta, Z, gsE, sites, nup, ndn, &
  &    cp_i_E,            dim_E_i,          cp_pup_E,          dim_E_pup,     &
  &    cp_pdn_E,          dim_E_pdn,        cp_mup_E,          dim_E_mup,     &
  &    cp_mdn_E,          dim_E_mdn,        cp_p2dn_E,         dim_E_p2dn,    &
@@ -75,9 +76,10 @@ subroutine  chi_tilde_loc( &
  &    cp_mupmdn_E,       dim_E_mupmdn,     cp_i_cdup,         cp_i_cddn,     &
  &    cp_pup_cddn,       cp_pdn_cdup,      cp_pdn_cddn,       cp_mup_cdup,   &
  &    cp_mup_cddn,       cp_mdn_cddn,      cp_mdn_cdup,       cp_muppdn_cdup,&
- &    cp_pupmdn_cddn,    cp_mupmdn_cdup,   cp_mupmdn_cddn,    cp_m2dn_cddn,  pDNDN,pUPDN )
+ &    cp_pupmdn_cddn,    cp_mupmdn_cdup,   cp_mupmdn_cddn,    cp_m2dn_cddn,  &
+ &    norb,nomg, frequ_,rank,size2,chi_loc )
 implicit none
-integer    :: op,sites,nup,ndn,k_,l_,k__,l__,k1,l1,k2,l2
+integer    :: op,sites,nup,ndn,k_,l_,k__,l__
 complex(8) :: w1,w2,w3
 real(8)    :: PHI_EPS,beta,Z,gsE
 complex(8) :: pDNDN,pUPDN
@@ -120,26 +122,32 @@ real(8)    ::   cp_m2dn_cddn(:,:,:)
 real(8)    :: boltzZ
 complex(8) :: cDNDN,cUPDN,xi1,yi1,xi2,yi2
 integer    :: dimi,diml,dimk,dimj,i,j,k,l,stati,stati_,u_,d_
-integer    :: mu,pu,md,pd
 real(8)    :: cutoff
 real(8)    :: d1,d2
-real(8)    :: cc_cutoff,cc
+real(8)    :: cccc, cccc_cutoff
+integer :: norb, nomg, iomg
+complex(8) :: frequ_(nomg,3)
+complex(8) :: chi_loc(nomg,norb,norb,norb,norb,2)
 real(8) :: st,ft
+logical :: bypass=.false.
+integer :: rank,size2
 !various notation for the same thing
 u_=k_;
 d_=l_;
-k1=k_
-l1=l_
-k2=k__
-l2=l__
-mu=k1
-pu=k2
-md=l1
-pd=l2
-cc_cutoff = 1d-4
-pDNDN = CMPLX(0.d0,0.d0);pUPDN = CMPLX(0.d0,0.d0)
+cccc_cutoff  = 1d-10
+cutoff=1d-4
 
-! call run_tests(k_) ; if(k_/=k_) call run_tests(l_) ;  return
+
+          !$OMP PARALLEL DEFAULT(NONE)   SHARED(cp_i_E,cp_mdn_cddn,cp_mdn_E,k_,k__,l_,l__,nomg,stati,cccc_cutoff,beta,&
+          !$OMP dim_E_pdn,dim_E_i,cp_pdn_E,frequ_,PHI_EPS,boltzZ,cp_i_cddn,op,st,ft,ndn,sites, cp_p2dn_E,dim_E_m2dn,&
+          !$OMP dim_E_mdn,dim_E_p2dn,cp_pdn_cddn,cp_m2dn_cddn,cp_m2dn_E,nup,dim_e_pup,cp_i_cdup,cp_pup_e,dim_e_puppdn,&
+          !$OMP cp_pup_cddn,cp_puppdn_e,cp_pdn_cdup,dim_e_muppdn,dim_e_mup,cp_mup_cdup,cp_mup_cddn,cp_muppdn_e,cp_mup_e,&
+          !$OMP cp_muppdn_cdup,dim_e_pupmdn,cp_mdn_cdup,cp_pupmdn_e,cp_pupmdn_cddn,dim_e_mupmdn,cp_mupmdn_cdup,cp_mupmdn_e,&
+          !$OMP  cp_mupmdn_cddn,gse,Z,cutoff,dimi,norb,rank,size2)&
+          !$OMP reduction(+:chi_loc) &
+          !$OMP PRIVATE(xi1,xi2,yi1,yi2,cccc,diml,dimk,dimj,iomg)
+
+
 
    do stati=1,dim_E_i
 
@@ -148,251 +156,251 @@ pDNDN = CMPLX(0.d0,0.d0);pUPDN = CMPLX(0.d0,0.d0)
     if(boltzZ<cutoff) cycle
 
     dimi = dim_E_i
+    do k_ = 1,norb
+       do k__ = 1,norb
+    do l_ = 1,norb
+       do l__ = 1,norb
 
-    if(op == 1 .and. (k2==k1.and.l2==l1.and.k1==l2))then
+    if(op == 1 .and. (k__==k_.and.l__==l_.and.k_==l__))then
 
-       cDNDN = CMPLX(0.d0,0.d0)
+            st = omp_get_wtime()
 
-       if(bypass.or.ndn/=sites) then
-          diml = dim_E_pdn ;
-          dimk = dim_E_i;
-          dimj = dim_E_pdn;
-          call cpu_time(st)
-          do j =1, dimj;
-             do l =1, diml;
-                cc =  cp_i_cddn(k_,l,+stati) *  cp_i_cddn(k_,j,+stati)
-                if( abs(cc) < cc_cutoff ) cycle
-                do k =1, dimk;
-                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                   xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                   cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,j,+stati)* cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
-                enddo
+
+            if(ndn/=sites) then
+
+
+            diml = dim_E_pdn
+            dimk = dim_E_i;
+            dimj = dim_E_pdn;
+            !$OMP DO  SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
+                if (abs(cccc) < cccc_cutoff) cycle
+                do iomg=rank+1,nomg,size2
+                xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc * (xi1+xi2)
              enddo
-          enddo
-          call cpu_time(ft)
-          print*,1,ft-st
-          call cpu_time(st)
-          do j =1, dimj;
-             do l =1, diml;
-                cc =  cp_i_cddn(k_,j,+stati) *  cp_i_cddn(k_,l,+stati)
-                if( abs(cc) < cc_cutoff ) cycle
-                do k =1, dimk;
-                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
 
-                   cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,j,+stati);
+          enddo;enddo;enddo
+          !$OMP END DO NOWAIT
+
+          !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,j,+stati)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                  yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                  yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+        endif
+
+
+        if((ndn/=sites .and. ndn/=0))then
+            diml = dim_E_pdn;
+            dimk = dim_E_i;
+            dimj = dim_E_mdn;
+
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                  xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                  xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1) + cccc *  (xi1+xi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+            diml = dim_E_mdn;
+            dimk = dim_E_pdn;
+            dimj = dim_E_i;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k_,k,+stati)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+
+                chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
                 enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,2,ft-st
-       endif
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
 
+            diml = dim_E_pdn;
+            dimk = dim_E_i;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_mdn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
-        if(bypass.or.(ndn/=sites .and. ndn/=0))then
-           diml = dim_E_pdn;
-           dimk = dim_E_i;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do l =1, diml;
-                 cc =  cp_i_cddn(k_,l,+stati) *  cp_mdn_cddn(k_,stati,+j)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                    xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN = cDNDN +  (xi1+xi2)* cp_mdn_cddn(k_,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,3,ft-st
+                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1+xi2)
+                enddo
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
 
-           diml = dim_E_mdn;
-           dimk = dim_E_pdn;
-           dimj = dim_E_i;
+            diml = dim_E_i;
+            dimk = dim_E_pdn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_i_cddn(k_,k,+l) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_i_cddn(k_,k,+stati) *  cp_mdn_cddn(k_,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN = cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k_,k,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,4,ft-st
+                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                enddo
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
 
-           diml = dim_E_pdn;
-           dimk = dim_E_i;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do l =1, diml;
-
-                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_i_cddn(k_,l,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-
-                    xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                    xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_mdn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,5,ft-st
-
-           diml = dim_E_i;
-           dimk = dim_E_pdn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
-                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_i_cddn(k_,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
-                    yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,k,+stati)* cp_i_cddn(k_,k,+l) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,6,ft-st
         endif
 
-        if(bypass.or.ndn<sites-1)then
+        if(ndn<sites-1)then
 
-           diml = dim_E_p2dn;
-           dimk = dim_E_pdn;
-           dimj = dim_E_pdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
-                 cc =  cp_i_cddn(k_,j,+stati) *  cp_i_cddn(k_,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w1,w3,PHI_EPS);
-                    yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (yi1+yi2)* cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(k_,l,+j) * cp_i_cddn(k_,j,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,7,ft-st
-           diml = dim_E_pdn;
-           dimk = dim_E_p2dn;
-           dimj = dim_E_pdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do l =1, diml;
-                 cc =  cp_i_cddn(k_,l,+stati) *  cp_i_cddn(k_,j,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
+            diml = dim_E_p2dn;
+            dimk = dim_E_pdn;
+            dimj = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(k_,l,+j) * cp_i_cddn(k_,j,+stati)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
-                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
-                    xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN =cDNDN+  (xi1+xi2)* cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k_,k,+l) * cp_i_cddn(k_,l,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,8,ft-st
+                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                enddo
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
+            diml = dim_E_pdn;
+            dimk = dim_E_p2dn;
+            dimj = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k_,k,+l) * cp_i_cddn(k_,l,+stati)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+
+                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1+xi2)
+                enddo
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
         endif
 
-        if(bypass.or.ndn>1)then
-           diml = dim_E_mdn;
-           dimk = dim_E_mdn;
-           dimj = dim_E_m2dn;
+        if(ndn>1)then
+            diml = dim_E_mdn;
+            dimk = dim_E_mdn;
+            dimj = dim_E_m2dn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(k_,stati,+k) *  cp_mdn_cddn(k_,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
-                    yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,9,ft-st
+                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                enddo
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
 
-           diml = dim_E_mdn;
-           dimk = dim_E_m2dn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
+            diml = dim_E_mdn;
+            dimk = dim_E_m2dn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_mdn_cddn(k_,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                    yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,10,ft-st
+                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                enddo
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
         endif
 
-        if(bypass.or.ndn/=0)then
+        if(ndn/=0)then
 
-           diml = dim_E_i;
-           dimk = dim_E_mdn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
+            diml = dim_E_i;
+            dimk = dim_E_mdn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
 
-                 cc =  cp_mdn_cddn(k_,stati,+j) *  cp_mdn_cddn(k_,stati,+k)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w1,w2,w3,PHI_EPS);
-                    xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (xi1+xi2)* cp_mdn_cddn(k_,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,11,ft-st
-
-           diml = dim_E_mdn;
-           dimk = dim_E_mdn;
-           dimj = dim_E_i;
-
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(k_,stati,+k) *  cp_mdn_cddn(k_,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
-                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (yi1+yi2)* cp_mdn_cddn(k_,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,12,ft-st
+                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1+xi2)
+                enddo
+             enddo;enddo;enddo
+             !$OMP END DO NOWAIT
+            st = omp_get_wtime()
+            diml = dim_E_mdn;
+            dimk = dim_E_mdn;
+            dimj = dim_E_i;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do iomg=rank+1,nomg,size2
+                  yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                  yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
         endif
 
-        pDNDN = pDNDN+cDNDN*boltzZ;
 
-    endif
 
-   if(op == 1 .and. (k2/=k1.or.l2/=l1.or.k1/=l2))then
 
-       cDNDN = CMPLX(0.d0,0.d0)
+
+     endif
+
+   if(op == 1 .and. (k__/=k_.or.l__/=l_.or.k_/=l__))then
+
 
 ! For UPDN *all* terms are important:
 ! tot  perm    w   w   w         matrix elements      fermi       //  Indices:
@@ -427,277 +435,387 @@ pDNDN = CMPLX(0.d0,0.d0);pUPDN = CMPLX(0.d0,0.d0)
 !  22   5      3   2   1         -u  +d  -d  +u   ki   -1
 !  23   5      3   2   1         +d  -d  +u  -u   li   -1
 
-       if(bypass.or.ndn/=sites) then
-          diml = dim_E_pdn ;
-          dimk = dim_E_i;
-          dimj = dim_E_pdn;
-          call cpu_time(st)
-          do j =1, dimj;
+        if(ndn/=sites) then
+            diml = dim_E_pdn ;
+            dimk = dim_E_i;
+            dimj = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_i_cddn(k__,j,+k) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-             do l =1, diml;
-                cc =  cp_i_cddn(l2,l,+stati) *  cp_i_cddn(k1,j,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do k =1, dimk;
-                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                   cDNDN =cDNDN+  (xi1)* cp_i_cddn(k1,j,+stati)* cp_i_cddn(k2,j,+k) * cp_i_cddn(l1,l,+k) * cp_i_cddn(l2,l,+stati);
+                  xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
 
-                   xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                   cDNDN =cDNDN+  (xi2)* cp_i_cddn(l1,j,+stati)* cp_i_cddn(k2,j,+k) * cp_i_cddn(k1,l,+k) * cp_i_cddn(l2,l,+stati);
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_i_cddn(k__,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,13,ft-st
-          call cpu_time(st)
-          do j =1, dimj;
+                  xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k__,j,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-             do l =1, diml;
-                cc =  cp_i_cddn(k1,j,+stati) *  cp_i_cddn(k1,l,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                cc =  cp_i_cddn(k2,j,+stati) *  cp_i_cddn(l1,l,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do k =1, dimk;
-                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                   cDNDN =cDNDN+  ( yi1)* cp_i_cddn(l1,l,+stati)* cp_i_cddn(l2,l,+k) * cp_i_cddn(k1,j,+k) * cp_i_cddn(k2,j,+stati);
+                  yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                  enddo
 
-                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                   cDNDN =cDNDN+  (+yi2)* cp_i_cddn(k1,l,+stati)* cp_i_cddn(l2,l,+k) * cp_i_cddn(l1,j,+k) * cp_i_cddn(k1,j,+stati);
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cddn(l_,j,+k) * cp_i_cddn(k_,j,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,14,ft-st
-       endif
+                  yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                  enddo
 
-
-        if(bypass.or.(ndn/=sites .and. ndn/=0))then
-           diml = dim_E_pdn;
-           dimk = dim_E_i;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-
-              do l =1, diml;
-                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mdn_cddn(pu,stati,+j)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mdn_cddn(pu,stati,+j)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                    cDNDN = cDNDN + (xi1)* cp_mdn_cddn(pu,stati,+j)* cp_mdn_cddn(mu,k,+j) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
-
-                    xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN = cDNDN + (xi2)* cp_mdn_cddn(pu,stati,+j)* cp_mdn_cddn(md,k,+j) * cp_i_cddn(mu,l,+k) * cp_i_cddn(pd,l,+stati);
-
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,15,ft-st
-
-           diml = dim_E_mdn;
-           dimk = dim_E_pdn;
-           dimj = dim_E_i;
-
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_i_cddn(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_i_cddn(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                    cDNDN = cDNDN+  (yi1)* cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_i_cddn(mu,k,+j) * cp_i_cddn(pu,k,+stati);
-                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN = cDNDN+  (+yi2)* cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(mu,j,+l) * cp_i_cddn(md,k,+j) * cp_i_cddn(pu,k,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,16,ft-st
-
-           diml = dim_E_pdn;
-           dimk = dim_E_i;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
-                 do l =1, diml;
-                    xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                    cDNDN =cDNDN+  (xi1)* cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mdn_cddn(pu,k,+j) * cp_mdn_cddn(mu,stati,+j);
-
-                    xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (+xi2)* cp_i_cddn(mu,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mdn_cddn(pu,k,+j) * cp_mdn_cddn(md,stati,+j);
-
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,17,ft-st
-
-           diml = dim_E_i;
-           dimk = dim_E_pdn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
-                 cc =  cp_mdn_cddn(mu,stati,+j) *  cp_i_cddn(md,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cddn(mu,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
-                    cDNDN =cDNDN+  (yi1)* cp_i_cddn(mu,k,+stati)* cp_i_cddn(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-                    yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN =cDNDN+  (yi2)* cp_i_cddn(md,k,+stati)* cp_i_cddn(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(mu,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,19,ft-st
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
         endif
 
-        if(bypass.or.ndn<sites-1)then
 
-           diml = dim_E_p2dn;
-           dimk = dim_E_pdn;
-           dimj = dim_E_pdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
+        if((ndn/=sites .and. ndn/=0))then
+            diml = dim_E_pdn;
+            dimk = dim_E_i;
+            dimj = dim_E_mdn;
 
-                 cc =  cp_i_cddn(pu,j,+stati) *  cp_i_cddn(mu,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_i_cddn(pu,j,+stati) *  cp_i_cddn(md,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w1,w3,PHI_EPS);
-                    cDNDN =cDNDN+  ( yi1) * cp_i_cddn(mu,k,+stati)* cp_pdn_cddn(md,l,+k) * cp_pdn_cddn(pd,l,+j) * cp_i_cddn(pu,j,+stati);
-                    yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (+yi2) * cp_i_cddn(md,k,+stati)* cp_pdn_cddn(mu,l,+k) * cp_pdn_cddn(pd,l,+j) * cp_i_cddn(pu,j,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,20,ft-st
-           diml = dim_E_pdn;
-           dimk = dim_E_p2dn;
-           dimj = dim_E_pdn;
-           call cpu_time(st)
-           do j =1, dimj;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-              do l =1, diml;
-                 cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(mu,j,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
-                    cDNDN =cDNDN+  (xi1)* cp_i_cddn(md,j,+stati)* cp_pdn_cddn(mu,k,+j) * cp_pdn_cddn(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-                    xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN =cDNDN+  (xi2)* cp_i_cddn(mu,j,+stati)* cp_pdn_cddn(md,k,+j) * cp_pdn_cddn(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,21,ft-st
+                  xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1) + cccc * (xi1)
+                  enddo
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+j)* cp_mdn_cddn(l_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+
+                  xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1) + cccc * (xi2)
+                  enddo
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+            diml = dim_E_mdn;
+            dimk = dim_E_pdn;
+            dimj = dim_E_i;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k__,k,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1)
+                  enddo
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(l_,k,+j) * cp_i_cddn(k__,k,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                  enddo
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+            diml = dim_E_pdn;
+            dimk = dim_E_i;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_mdn_cddn(k__,k,+j) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                  enddo
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_mdn_cddn(k__,k,+j) * cp_mdn_cddn(l_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+xi2)
+                  enddo
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+            diml = dim_E_i;
+            dimk = dim_E_pdn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_i_cddn(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_i_cddn(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
         endif
 
-        if(bypass.or.ndn>1)then
-           diml = dim_E_mdn;
-           dimk = dim_E_mdn;
-           dimj = dim_E_m2dn;
+        if(ndn<sites-1)then
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_mdn_cddn(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
-                    cDNDN =cDNDN+  (yi1)* cp_mdn_cddn(pd,stati,+l)* cp_m2dn_cddn(pu,l,+j) * cp_m2dn_cddn(mu,k,+j) * cp_mdn_cddn(md,stati,+k);
-                    yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (yi2)* cp_mdn_cddn(pd,stati,+l)* cp_m2dn_cddn(pu,l,+j) * cp_m2dn_cddn(md,k,+j) * cp_mdn_cddn(mu,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,22,ft-st
+            diml = dim_E_p2dn;
+            dimk = dim_E_pdn;
+            dimj = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(l_,l,+k) * cp_pdn_cddn(l__,l,+j) * cp_i_cddn(k__,j,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-           diml = dim_E_mdn;
-           dimk = dim_E_m2dn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(mu,stati,+j) *  cp_mdn_cddn(pu,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mdn_cddn(pu,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                    cDNDN = cDNDN+  ( yi1)* cp_mdn_cddn(pu,stati,+l)* cp_m2dn_cddn(pd,l,+k) * cp_m2dn_cddn(md,j,+k) * cp_mdn_cddn(mu,stati,+j);
-                    yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                    cDNDN = cDNDN+  (+yi2)* cp_mdn_cddn(pu,stati,+l)* cp_m2dn_cddn(pd,l,+k) * cp_m2dn_cddn(mu,j,+k) * cp_mdn_cddn(md,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,23,ft-st
+                  yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(l__,l,+j) * cp_i_cddn(k__,j,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+            diml = dim_E_pdn;
+            dimk = dim_E_p2dn;
+            dimj = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(l_,k,+j) * cp_pdn_cddn(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
         endif
 
-        if(bypass.or.ndn/=0)then
+        if(ndn>1)then
+            diml = dim_E_mdn;
+            dimk = dim_E_mdn;
+            dimj = dim_E_m2dn;
 
-           diml = dim_E_i;
-           dimk = dim_E_mdn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_m2dn_cddn(k__,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(l_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-                 cc =  cp_mdn_cddn(mu,stati,+j) *  cp_mdn_cddn(pu,stati,+k)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mdn_cddn(pu,stati,+k)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w1,w2,w3,PHI_EPS);
-                    cDNDN =cDNDN+  (xi1)* cp_mdn_cddn(pu,stati,+k) * cp_mdn_cddn(md,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(mu,stati,+j);
-                    xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (xi2)* cp_mdn_cddn(pu,stati,+k) * cp_mdn_cddn(mu,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,24,ft-st
+                  yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_m2dn_cddn(k__,l,+j) * cp_m2dn_cddn(l_,k,+j) * cp_mdn_cddn(k_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
 
-           diml = dim_E_mdn;
-           dimk = dim_E_mdn;
-           dimj = dim_E_i;
+                  yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
-                    cDNDN =cDNDN+  ( yi1)* cp_mdn_cddn(pd,stati,+l) * cp_mdn_cddn(mu,j,+l) * cp_mdn_cddn(pu,j,+k) * cp_mdn_cddn(md,stati,+k);
-                    yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
-                    cDNDN =cDNDN+  (+yi2)* cp_mdn_cddn(pd,stati,+l) * cp_mdn_cddn(md,j,+l) * cp_mdn_cddn(pu,j,+k) * cp_mdn_cddn(mu,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,25,ft-st
+            diml = dim_E_mdn;
+            dimk = dim_E_m2dn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+l)* cp_m2dn_cddn(l__,l,+k) * cp_m2dn_cddn(l_,j,+k) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+l)* cp_m2dn_cddn(l__,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(l_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
         endif
-        pDNDN = pDNDN+cDNDN*boltzZ;
+
+        if(ndn/=0)then
+
+            diml = dim_E_i;
+            dimk = dim_E_mdn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+k) * cp_mdn_cddn(l_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+            diml = dim_E_mdn;
+            dimk = dim_E_mdn;
+            dimj = dim_E_i;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k__,j,+k) * cp_mdn_cddn(l_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+
+                  yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+               !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l) * cp_mdn_cddn(l_,j,+l) * cp_mdn_cddn(k__,j,+k) * cp_mdn_cddn(k_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+                  yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+        endif
+
 
      endif
 
@@ -705,433 +823,455 @@ pDNDN = CMPLX(0.d0,0.d0);pUPDN = CMPLX(0.d0,0.d0)
 ! **** UPDN *****************************************************************************
 
     if(op == 2)then
-       cUPDN = CMPLX(0.d0,0.d0)
-       if(bypass.or.(ndn/=sites .and. nup /= sites))then
-          diml = dim_E_pdn;
-          dimk = dim_E_i;
-          dimj = dim_E_pup;
-          call cpu_time(st)
-          do j =1, dimj;
+        if((ndn/=sites .and. nup /= sites))then
+            diml = dim_E_pdn;
+            dimk = dim_E_i;
+            dimj = dim_E_pup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cdup(k_,j,+stati)* cp_i_cdup(k__,j,+k) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  do iomg=rank+1,nomg,size2
+                     xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
 
-             do l =1, diml;
-                cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cdup(mu,j,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do k =1, dimk;
-                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                   cUPDN =cUPDN + xi1 * cp_i_cdup(mu,j,+stati)* cp_i_cdup(pu,j,+k) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,26,ft-st
+            dimj = dim_E_pup;
+            dimk = dim_E_i;
+            diml = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cdup(k_,j,+k) * cp_i_cdup(k__,j,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
 
-          dimj = dim_E_pup;
-          dimk = dim_E_i;
-          diml = dim_E_pdn;
-          call cpu_time(st)
-          do j =1, dimj;
+                  do iomg=rank+1,nomg,size2
+                     xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
 
-             do l =1, diml;
-                cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cddn(md,l,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do k =1, dimk;
-                   xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),w1,w2,w3,PHI_EPS);
-                   cUPDN =cUPDN + xi1 * cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_i_cdup(mu,j,+k) * cp_i_cdup(pu,j,+stati);
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,27,ft-st
+            diml = dim_E_puppdn;
+            dimk = dim_E_pup;
+            dimj = dim_E_pup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     cccc = boltzZ *  cp_i_cdup(k_,k,stati)* cp_pup_cddn(l_,l,+k) * cp_pup_cddn(l__,l,+j) * cp_i_cdup(k__,j,+stati)
+                     if (abs(cccc) < cccc_cutoff) cycle
 
-          diml = dim_E_puppdn;
-          dimk = dim_E_pup;
-          dimj = dim_E_pup;
-          call cpu_time(st)
-          do j =1, dimj;
-             do k =1, dimk;
-                cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cdup(mu,k,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do l =1, diml;
-                   xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pup_E(k),cp_puppdn_E(l),w2,w1,w3,PHI_EPS);
-                   cUPDN =cUPDN - xi1 * cp_i_cdup(mu,k,+stati)* cp_pup_cddn(md,l,+k) * cp_pup_cddn(pd,l,+j) * cp_i_cdup(pu,j,+stati);
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,28,ft-st
+                     do iomg=rank+1,nomg,size2
+                        xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pup_E(k),cp_puppdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                     enddo
+                  enddo;enddo;enddo
+                  !$OMP END DO NOWAIT
 
-          diml = dim_E_pdn;
-          dimk = dim_E_puppdn;
-          dimj = dim_E_pdn;
-          call cpu_time(st)
-          do j =1, dimj;
-             do l =1, diml;
-                cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do k =1, dimk;
-                   xi1   = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_puppdn_E(k),cp_pdn_E(l),w3,w1,w2,PHI_EPS);
-                   cUPDN = cUPDN + xi1 * cp_i_cddn(md,j,+stati)* cp_pdn_cdup(mu,k,+j) * cp_pdn_cdup(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,29,ft-st
+            diml = dim_E_pdn;
+            dimk = dim_E_puppdn;
+            dimj = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_pdn_cdup(k_,k,+j) * cp_pdn_cdup(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
 
-          diml = dim_E_pdn;
-          dimk = dim_E_puppdn;
-          dimj = dim_E_pup;
-          call cpu_time(st)
-          do j =1, dimj;
-             do l =1, diml;
-                cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cdup(mu,j,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do k =1, dimk;
-                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_puppdn_E(k),cp_pdn_E(l),w1,w3,w2,PHI_EPS);
-                   cUPDN =cUPDN - xi1 * cp_i_cdup(mu,j,+stati)* cp_pup_cddn(md,k,+j) * cp_pdn_cdup(pu,k,+l) * cp_i_cddn(pd,l,+stati);
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,30,ft-st
 
-          diml = dim_E_puppdn;
-          dimk = dim_E_pdn;
-          dimj = dim_E_pup;
-          call cpu_time(st)
-          do j =1, dimj;
-             do k =1, dimk;
+                  do iomg=rank+1,nomg,size2
+                     xi1   = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_puppdn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                     chi_loc(iomg,k_,k__,l_,l__,2) = chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                  enddo
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
 
-                cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cddn(md,k,+stati)
-                if (abs(cc) < cc_cutoff) cycle
-                do l =1, diml;
-                   xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pdn_E(k),cp_puppdn_E(l),w2,w3,w1,PHI_EPS);
-                   cUPDN =cUPDN + xi1 * cp_i_cddn(md,k,+stati)* cp_pdn_cdup(mu,l,+k) * cp_pup_cddn(pd,l,+j) * cp_i_cdup(pu,j,+stati);
-                enddo
-             enddo
-          enddo
-          call cpu_time(ft)
-          print*,31,ft-st
-       endif
+            diml = dim_E_pdn;
+            dimk = dim_E_puppdn;
+            dimj = dim_E_pup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     if (abs(cccc) < cccc_cutoff) cycle
+                     cccc = boltzZ *  cp_i_cdup(k_,j,stati)* cp_pup_cddn(l_,k,+j) * cp_pdn_cdup(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+                     do iomg=rank+1,nomg,size2
+                     xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_puppdn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - xi1 * cccc
+                  enddo
 
-        if(bypass.or.(ndn/=sites .and. nup /= 0)) then
-           diml = dim_E_muppdn;
-           dimk = dim_E_mup;
-           dimj = dim_E_mup;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
 
-                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_mup_cdup(pu,stati,+k)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_mup_E(k),cp_muppdn_E(l),w1,w2,w3,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+k)* cp_mup_cddn(md,l,+k) * cp_mup_cddn(pd,l,+j) * cp_mup_cdup(mu,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,32,ft-st
+            diml = dim_E_puppdn;
+            dimk = dim_E_pdn;
+            dimj = dim_E_pup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_pdn_cdup(k_,l,+k) * cp_pup_cddn(l__,l,+j) * cp_i_cdup(k__,j,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
 
-           diml = dim_E_pdn;
-           dimk = dim_E_i;
-           dimj = dim_E_mup;
-           call cpu_time(st)
-           do j =1, dimj;
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pdn_E(k),cp_puppdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
 
-              do l =1, diml;
-                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mup_cdup(pu,stati,+j)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+j)* cp_mup_cdup(mu,k,+j) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,33,ft-st
 
-           diml = dim_E_pdn;
-           dimk = dim_E_i;
-           dimj = dim_E_mup;
-           call cpu_time(st)
-           do j =1, dimj;
-              do l =1, diml;
-                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_i_cddn(md,l,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),w2,w1,w3,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_i_cddn(md,l,+stati)* cp_i_cddn(pd,l,+k) * cp_mup_cdup(pu,k,+j) * cp_mup_cdup(mu,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,34,ft-st
-           diml = dim_E_muppdn;
-           dimk = dim_E_pdn;
-           dimj = dim_E_mup;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
-
-                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_i_cddn(md,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_pdn_E(k),cp_muppdn_E(l),w1,w3,w2,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_i_cddn(md,k,+stati)* cp_muppdn_cdup(pu,k,+l) * cp_mup_cddn(pd,l,+j) * cp_mup_cdup(mu,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,35,ft-st
-
-           diml = dim_E_pdn;
-           dimk = dim_E_muppdn;
-           dimj = dim_E_mup;
-           call cpu_time(st)
-           do j =1, dimj;
-
-              do l =1, diml;
-                 cc =  cp_i_cddn(pd,l,+stati) *  cp_mup_cdup(pu,stati,+j)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_muppdn_E(k),cp_pdn_E(l),w2,w3,w1,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+j)* cp_mup_cddn(md,k,+j) * cp_muppdn_cdup(mu,l,+k) * cp_i_cddn(pd,l,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,36,ft-st
-
-           diml = dim_E_pdn;
-           dimk = dim_E_muppdn;
-           dimj = dim_E_pdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do l =1, diml;
-                 cc =  cp_i_cddn(pd,l,+stati) *  cp_i_cddn(md,j,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_muppdn_E(k),cp_pdn_E(l),w3,w2,w1,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_i_cddn(md,j,+stati)* cp_muppdn_cdup(pu,j,+k) * cp_muppdn_cdup(mu,l,+k) * cp_i_cddn(pd,l,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,37,ft-st
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
         endif
 
-        if(bypass.or.(ndn/=0 .and. nup /= sites))then
-           diml = dim_E_mdn;
-           dimk = dim_E_mdn;
-           dimj = dim_E_pupmdn;
+        if((ndn/=sites .and. nup /= 0)) then
+            diml = dim_E_muppdn;
+            dimk = dim_E_mup;
+            dimj = dim_E_mup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+k)* cp_mup_cddn(l_,l,+k) * cp_mup_cddn(l__,l,+j) * cp_mup_cdup(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),w1,w2,w3,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cdup(mu,j,+l) * cp_mdn_cdup(pu,j,+k) * cp_mdn_cddn(md,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,38,ft-st
-           diml = dim_E_i;
-           dimk = dim_E_pup;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_mup_E(k),cp_muppdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
 
-                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cdup(mu,k,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pup_E(k),cp_i_E(l),w3,w1,w2,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_i_cdup(mu,k,+stati)* cp_i_cdup(pu,k,+l) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,39,ft-st
-           diml = dim_E_mdn;
-           dimk = dim_E_pup;
-           dimj = dim_E_i;
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_i_cdup(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pup_E(k),cp_mdn_E(l),w3,w1,w2,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_i_cdup(mu,k,+j) * cp_i_cdup(pu,k,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,40,ft-st
-           diml = dim_E_mdn;
-           dimk = dim_E_pup;
-           dimj = dim_E_pupmdn;
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_i_cdup(pu,k,+stati) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_pup_E(k),cp_mdn_E(l),w1,w3,w2,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cdup(mu,j,+l) * cp_pupmdn_cddn(md,k,+j) * cp_i_cdup(pu,k,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,41,ft-st
-           diml = dim_E_pup;
-           dimk = dim_E_pupmdn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
+            diml = dim_E_pdn;
+            dimk = dim_E_i;
+            dimj = dim_E_mup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                  do iomg=rank+1,nomg,size2
+                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+j)* cp_mup_cdup(k_,k,+j) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                  chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+               enddo
 
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_i_cdup(mu,l,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_pupmdn_E(k),cp_pup_E(l),w2,w3,w1,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_i_cdup(mu,l,+stati)* cp_pupmdn_cddn(pd,l,+k) * cp_mdn_cdup(pu,k,+j) * cp_mdn_cddn(md,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,42,ft-st
-           diml = dim_E_pup;
-           dimk = dim_E_pupmdn;
-           dimj = dim_E_pup;
-           call cpu_time(st)
-           do j =1, dimj;
 
-              do l =1, diml;
-                 cc =  cp_i_cdup(pu,j,+stati) *  cp_i_cdup(mu,l,+stati)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_pupmdn_E(k),cp_pup_E(l),w3,w2,w1,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_i_cdup(mu,l,+stati)* cp_pupmdn_cddn(pd,l,+k) * cp_pupmdn_cddn(md,j,+k) * cp_i_cdup(pu,j,+stati);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,43,ft-st
+            enddo;enddo;enddo
+            !$OMP END DO NOWAIT
+
+            diml = dim_E_pdn;
+            dimk = dim_E_i;
+            dimj = dim_E_mup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     cccc = boltzZ *  cp_i_cddn(l_,l,stati)* cp_i_cddn(l__,l,+k) * cp_mup_cdup(k__,k,+j) * cp_mup_cdup(k_,stati,+j)
+                     if (abs(cccc) < cccc_cutoff) cycle
+                     xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                     do iomg=rank+1,nomg,size2
+                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                     enddo
+
+
+                  enddo;enddo;enddo
+                  !$OMP END DO NOWAIT
+            diml = dim_E_muppdn;
+            dimk = dim_E_pdn;
+            dimj = dim_E_mup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ * cp_i_cddn(l_,k,+stati)* cp_muppdn_cdup(k__,k,+l) * cp_mup_cddn(l__,l,+j) * cp_mup_cdup(k_,stati,+j);
+                  if (abs(cccc) < cccc_cutoff) cycle
+                  xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_pdn_E(k),cp_muppdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+                  do iomg=rank+1,nomg,size2
+                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                  enddo
+
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+
+            diml = dim_E_pdn;
+            dimk = dim_E_muppdn;
+            dimj = dim_E_mup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+j)* cp_mup_cddn(l_,k,+j) * cp_muppdn_cdup(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_muppdn_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
+
+
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+
+            diml = dim_E_pdn;
+            dimk = dim_E_muppdn;
+            dimj = dim_E_pdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_muppdn_cdup(k__,j,+k) * cp_muppdn_cdup(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                     if (abs(cccc) < cccc_cutoff) cycle
+
+                     do iomg=rank+1,nomg,size2
+                        xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_muppdn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc *xi1
+                     enddo
+
+
+                  enddo;enddo;enddo
+                  !$OMP END DO NOWAIT
         endif
 
-        if(bypass.or.(ndn/=0 .and. nup /= 0))then
-           diml = dim_E_mdn;
-           dimk = dim_E_mdn;
-           dimj = dim_E_mupmdn;
+        if((ndn/=0 .and. nup /= sites))then
+            diml = dim_E_mdn;
+            dimk = dim_E_mdn;
+            dimj = dim_E_pupmdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cdup(k_,j,+l) * cp_mdn_cdup(k__,j,+k) * cp_mdn_cddn(l_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff) cycle
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(md,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),w2,w1,w3,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mupmdn_cdup(pu,l,+j) * cp_mupmdn_cdup(mu,k,+j) * cp_mdn_cddn(md,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,44,ft-st
-           diml = dim_E_mup;
-           dimk = dim_E_mupmdn;
-           dimj = dim_E_mup;
-           call cpu_time(st)
-           do j =1, dimj;
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
 
-              do l =1, diml;
-                 cc =  cp_mup_cdup(mu,stati,+j) *  cp_mup_cdup(pu,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_mupmdn_E(k),cp_mup_E(l),w3,w1,w2,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_mup_cdup(pu,stati,+l)* cp_mupmdn_cddn(pd,l,+k) * cp_mupmdn_cddn(md,j,+k) * cp_mup_cdup(mu,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,45,ft-st
-           diml = dim_E_mup;
-           dimk = dim_E_mupmdn;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do l =1, diml;
-                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mup_cdup(pu,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do k =1, dimk;
-                    xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_mupmdn_E(k),cp_mup_E(l),w1,w3,w2,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+l)* cp_mupmdn_cddn(pd,l,+k) * cp_mupmdn_cdup(mu,j,+k) * cp_mdn_cddn(md,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,46,ft-st
-           diml = dim_E_mdn;
-           dimk = dim_E_mup;
-           dimj = dim_E_mupmdn;
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mup_cdup(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mup_E(k),cp_mdn_E(l),w2,w3,w1,PHI_EPS);
-                    cUPDN =cUPDN + xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mupmdn_cdup(pu,l,+j) * cp_mupmdn_cddn(md,k,+j) * cp_mup_cdup(mu,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,47,ft-st
-           diml = dim_E_i;
-           dimk = dim_E_mup;
-           dimj = dim_E_mdn;
-           call cpu_time(st)
-           do j =1, dimj;
-              do k =1, dimk;
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+            diml = dim_E_i;
+            dimk = dim_E_pup;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cdup(k_,k,+stati)* cp_i_cdup(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
 
-                 cc =  cp_mdn_cddn(md,stati,+j) *  cp_mup_cdup(pu,stati,+k)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do l =1, diml;
-                    xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mup_E(k),cp_i_E(l),w3,w2,w1,PHI_EPS);
-                    cUPDN =cUPDN - xi1 * cp_mup_cdup(pu,stati,+k)* cp_mup_cdup(mu,l,+k) * cp_mdn_cddn(pd,l,+j) * cp_mdn_cddn(md,stati,+j);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,48,ft-st
-           diml = dim_E_mdn;
-           dimk = dim_E_mup;
-           dimj = dim_E_i;
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pup_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
 
-           call cpu_time(st)
-           do k =1, dimk;
-              do l =1, diml;
-                 cc =  cp_mup_cdup(mu,stati,+k) *  cp_mdn_cddn(pd,stati,+l)
-                 if (abs(cc) < cc_cutoff) cycle
-                 do j =1, dimj;
-                    xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mup_E(k),cp_mdn_E(l),w3,w2,w1,PHI_EPS);
-                    cUPDN = cUPDN - xi1 * cp_mdn_cddn(pd,stati,+l)* cp_mdn_cddn(md,j,+l) * cp_mup_cdup(pu,j,+k) * cp_mup_cdup(mu,stati,+k);
-                 enddo
-              enddo
-           enddo
-           call cpu_time(ft)
-           print*,ft-st
+
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+            diml = dim_E_mdn;
+            dimk = dim_E_pup;
+            dimj = dim_E_i;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_i_cdup(k_,k,+j) * cp_i_cdup(k__,k,+stati)
+                  if (abs(cccc) < cccc_cutoff) cycle
+
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pup_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
+
+
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+            diml = dim_E_mdn;
+            dimk = dim_E_pup;
+            dimj = dim_E_pupmdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     if (abs(cccc) < cccc_cutoff) cycle
+                     cccc = boltzZ *  cp_mdn_cddn(l__,stati,l)* cp_mdn_cdup(k_,j,+l) * cp_pupmdn_cddn(l_,k,+j) * cp_i_cdup(k__,k,+stati)
+                     do iomg=rank+1,nomg,size2
+                     xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_pup_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) -  cccc * xi1
+                  enddo
+
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+            diml = dim_E_pup;
+            dimk = dim_E_pupmdn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_i_cdup(k_,l,+stati)* cp_pupmdn_cddn(l__,l,+k) * cp_mdn_cdup(k__,k,+j) * cp_mdn_cddn(l_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_pupmdn_E(k),cp_pup_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
+
+
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+            diml = dim_E_pup;
+            dimk = dim_E_pupmdn;
+            dimj = dim_E_pup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     cccc = boltzZ *  cp_i_cdup(k_,l,stati)* cp_pupmdn_cddn(l__,l,+k) * cp_pupmdn_cddn(l_,j,+k) * cp_i_cdup(k__,j,+stati)
+                     if (abs(cccc) < cccc_cutoff) cycle
+
+                     do iomg=rank+1,nomg,size2
+                        xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_pupmdn_E(k),cp_pup_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                     enddo
+
+
+                  enddo;enddo;enddo
+                  !$OMP END DO NOWAIT
         endif
 
-        pUPDN = pUPDN + cUPDN*boltzZ;
+        if((ndn/=0 .and. nup /= 0))then
+            diml = dim_E_mdn;
+            dimk = dim_E_mdn;
+            dimj = dim_E_mupmdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mupmdn_cdup(k__,l,+j) * cp_mupmdn_cdup(k_,k,+j) * cp_mdn_cddn(l_,stati,+k)
+                     if (abs(cccc) < cccc_cutoff) cycle
+
+
+                     do iomg=rank+1,nomg,size2
+                        xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
+                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                     enddo
+
+
+                  enddo;enddo;enddo
+                  !$OMP END DO NOWAIT
+            diml = dim_E_mup;
+            dimk = dim_E_mupmdn;
+            dimj = dim_E_mup;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+l)* cp_mupmdn_cddn(l__,l,+k) * cp_mupmdn_cddn(l_,j,+k) * cp_mup_cdup(k_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_mupmdn_E(k),cp_mup_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
+
+
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+            diml = dim_E_mup;
+            dimk = dim_E_mupmdn;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     cccc = boltzZ *  cp_mup_cdup(k__,stati,l)* cp_mupmdn_cddn(l__,l,+k) * cp_mupmdn_cdup(k_,j,+k) * cp_mdn_cddn(l_,stati,+j)
+                     if (abs(cccc) < cccc_cutoff) cycle
+
+                     do iomg=rank+1,nomg,size2
+                     xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_mupmdn_E(k),cp_mup_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
+
+                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                  enddo
+
+
+               enddo;enddo;enddo
+               !$OMP END DO NOWAIT
+            diml = dim_E_mdn;
+            dimk = dim_E_mup;
+            dimj = dim_E_mupmdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mupmdn_cdup(k__,l,+j) * cp_mupmdn_cddn(l_,k,+j) * cp_mup_cdup(k_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff) cycle
+
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mup_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+            enddo
+
+
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+            diml = dim_E_i;
+            dimk = dim_E_mup;
+            dimj = dim_E_mdn;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+k)* cp_mup_cdup(k_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                  if (abs(cccc) < cccc_cutoff) cycle
+
+                  do iomg=rank+1,nomg,size2
+               xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mup_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+            enddo
+
+
+         enddo;enddo;enddo
+         !$OMP END DO NOWAIT
+            diml = dim_E_mdn;
+            dimk = dim_E_mup;
+            dimj = dim_E_i;
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+            do k =1, dimk;
+               do l =1, diml;
+                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_mup_cdup(k__,j,+k) * cp_mup_cdup(k_,stati,+k)
+                  if (abs(cccc) < cccc_cutoff) cycle
+
+                  do iomg=rank+1,nomg,size2
+                  xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mup_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                  chi_loc(iomg,k_,k__,l_,l__,2) = chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+               enddo
+
+
+            enddo;enddo;enddo
+            !$OMP END DO NOWAIT
+        endif
+
      endif
+     enddo
   enddo
+enddo
+enddo
+
+ enddo
+ !$OMP END PARALLEL
 
 contains
 

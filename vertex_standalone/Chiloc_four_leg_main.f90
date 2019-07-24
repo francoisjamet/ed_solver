@@ -206,7 +206,7 @@ real(8)                             :: Z_test
 real(8)                             :: omega,nu,mu,rtmp,frequsum
 integer :: ifrequsum,itmp
 integer                             :: i_,j_
-complex(8),allocatable              :: Chi_loc(:,:,:,:,:,:),Chi0_loc(:,:,:,:,:,:),Chi0_spin_inv(:,:),Chi_spin_inv(:,:),Chi0_charge_inv(:,:),Chi_charge_inv(:,:)
+complex(8),allocatable              :: chi_loc(:,:,:,:,:,:),Chi0_loc(:,:,:,:,:,:),Chi0_spin_inv(:,:),Chi_spin_inv(:,:),Chi0_charge_inv(:,:),Chi_charge_inv(:,:)
 complex(8),allocatable              :: Chi_charge(:,:,:,:,:),Chi_spin(:,:,:,:,:),Chi0_charge(:,:,:,:,:),Chi0_spin(:,:,:,:,:),Chi_vertex_spin(:,:,:,:,:),Chi_vertex_charge(:,:,:,:,:)
 complex(8),allocatable              :: frequ_(:,:) ,frequ__(:,:)
 real(8),allocatable                 :: mu_(:),nu_(:)
@@ -246,13 +246,9 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
 
    chargedeg = 1.d0 ;  spindeg = 1.d0
 
-   Chi_loc = 0.d0
+   chi_loc = 0.d0
 
    do op=1,2 ! dndn and updn terms
-
-   do i_=rank+1,j_,size2  ! fermionic frequencies
-
-     w1=frequ_(i_,1); w2=frequ_(i_,2) ; w3=frequ_(i_,3)
 
      if(rank==0) write(*,*) 'OMEGA / FREQ / TOT  = ', kkk_,i_,j_
 
@@ -265,13 +261,8 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
        call assign_cp_eigen
        call assign_cp_matrices
 
-       do k_=1,norb
-       do k__=1,norb
-       do l_=1,norb
-       do l__=1,norb
-
         call chi_tilde_loc( &
-     &    k_,k__,l_,l__,cutoff, op, w1,  w2,  w3, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i), &
+     &    cutoff, op, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i), &
      &    cp_i_E,            dim_E_i,           cp_pup_E,          dim_E_pup,        &
      &    cp_pdn_E,          dim_E_pdn,         cp_mup_E,          dim_E_mup,        &
      &    cp_mdn_E,          dim_E_mdn,         cp_p2dn_E,         dim_E_p2dn,       &
@@ -280,38 +271,27 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      &    cp_mupmdn_E,       dim_E_mupmdn,      cp_i_cdup,         cp_i_cddn,        &
      &    cp_pup_cddn,       cp_pdn_cdup,       cp_pdn_cddn,       cp_mup_cdup,      &
      &    cp_mup_cddn,       cp_mdn_cddn,       cp_mdn_cdup,       cp_muppdn_cdup,   &
-     &    cp_pupmdn_cddn,    cp_mupmdn_cdup,    cp_mupmdn_cddn,    cp_m2dn_cddn,  pDNDN, pUPDN )
-
+     &    cp_pupmdn_cddn,    cp_mupmdn_cdup,    cp_mupmdn_cddn,    cp_m2dn_cddn,     &
+     &    norb,j_,frequ_,rank,size2,chi_loc )
           if(verbose)then
            if(op==1) write(*,*) 'pDNDN = ', pDNDN
            if(op==2) write(*,*) 'pUPDN = ', pUPDN
           endif
-
-          if(op==1) Chi_loc(k_,k__,l_,l__,i_,op) = Chi_loc(k_,k__,l_,l__,i_,op) + pDNDN
-          if(op==2) Chi_loc(k_,k__,l_,l__,i_,op) = Chi_loc(k_,k__,l_,l__,i_,op) + pUPDN
-
-       enddo !norb
-       enddo !norb
-       enddo !norb
-       enddo !norb
-
      enddo !sector
-
-    enddo ! fermionic
     enddo ! dndn or updn
 
-    do k_=1,norb
+    do i_=1,j_
      do l_=1,norb
-      call mpisum(Chi_loc(k_,l_,:,:,:,:))
+      call mpisum(chi_loc(i_,l_,:,:,:,:))
      enddo
     enddo
 
-    Chi_charge = ( Chi_loc(:,:,:,:,:,1)+Chi_loc (:,:,:,:,:,2) )/chargedeg
-    Chi_spin   = ( Chi_loc(:,:,:,:,:,1)-Chi_loc (:,:,:,:,:,2) )/spindeg
+    Chi_charge = ( chi_loc(:,:,:,:,:,1)+chi_loc (:,:,:,:,:,2) )/chargedeg
+    Chi_spin   = ( chi_loc(:,:,:,:,:,1)-chi_loc (:,:,:,:,:,2) )/spindeg
     Chi0_charge= (Chi0_loc(:,:,:,:,:,1)+Chi0_loc(:,:,:,:,:,2) )/chargedeg
     Chi0_spin  = (Chi0_loc(:,:,:,:,:,1)-Chi0_loc(:,:,:,:,:,2) )/spindeg
     call write_chiloc
-    call write_results_fermionic
+!    call write_results_fermionic
 
 
    if(rank==0) write(*,*)'NEXT OMEGA , RANK : ', rank
@@ -536,7 +516,7 @@ subroutine init
      !stop
 
      PHI_EPS=0.00001
-     cutoff=1.d-7
+     cutoff=1.d-5
      def=0.d0
      path=.true.
 
@@ -651,8 +631,8 @@ end subroutine
 
 
 subroutine allocate_arrays
-     if(rank==0) write(*,*) 'allocating Chi_loc array'
-     if(allocated(Chi_loc))           deallocate(Chi_loc)
+     if(rank==0) write(*,*) 'allocating chi_loc array'
+     if(allocated(chi_loc))           deallocate(chi_loc)
      if(allocated(Chi0_loc))          deallocate(Chi0_loc)
      if(allocated(mu_))               deallocate(mu_)
      if(allocated(nu_))               deallocate(nu_)
@@ -662,9 +642,10 @@ subroutine allocate_arrays
      if(allocated(Chi_charge))        deallocate(Chi_charge)
      if(allocated(Chi_spin))          deallocate(Chi_spin)
      if(allocated(Chi0_spin))         deallocate(Chi0_spin)
-     allocate(Chi0_charge(norb,norb,norb,norb,j_),Chi_charge(norb,norb,norb,norb,j_),Chi_spin(norb,norb,norb,norb,j_),Chi0_spin(norb,norb,norb,norb,j_))
+     allocate(Chi0_charge(j_,norb,norb,norb,norb),Chi_charge(j_,norb,norb,norb,norb),Chi_spin(j_,norb,norb,norb,norb),Chi0_spin(j_,norb,norb,norb,norb))
      allocate(Chi_vertex_spin(norb,norb,norb,norb,j_),Chi_vertex_charge(norb,norb,norb,norb,j_))
-     allocate(mu_(j_),nu_(j_),Chi_loc(norb,norb,norb,norb,j_,2),frequ_(j_,3),frequ__(j_,3))
+     allocate(mu_(j_),nu_(j_),frequ_(j_,3),frequ__(j_,3))
+     allocate(chi_loc(j_,norb,norb,norb,norb,2))
      allocate(frequ_ind_orig(j_,3),frequ_ind(j_,3),Chi0_loc(norb,norb,norb,norb,j_,2))
 end subroutine
 
@@ -1047,8 +1028,8 @@ subroutine write_chiloc
               open(unit=8080,file='chiloc_spin_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
               open(unit=8081,file='chiloc_charge_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
               do om = 1, j_
-                 write(8080,*) real(Chi_spin(i1,i2,i3,i4,om)), aimag(Chi_spin(i1,i2,i3,i4,om))
-                 write(8081,*) real(Chi_charge(i1,i2,i3,i4,om)), aimag(Chi_charge(i1,i2,i3,i4,om))
+                 write(8080,*) real(Chi_spin(om,i1,i2,i3,i4)), aimag(Chi_spin(om,i1,i2,i3,i4))
+                 write(8081,*) real(Chi_charge(om,i1,i2,i3,i4)), aimag(Chi_charge(om,i1,i2,i3,i4))
               enddo
               close(8080)
               close(8081)
@@ -1195,8 +1176,8 @@ integer :: tt1,tt2,tt1_,tt2_,n_,n__
       if(op==2) open(unit=8080,file='vertex_updn_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
       do i_=1,j_
        if(Verbose) write(*,*) 'writing : ', i_,j_
-       if(op==1) tmpc=Chi_loc(k_,k__,l_,l__,i_,1)
-       if(op==2) tmpc=Chi_loc(k_,k__,l_,l__,i_,2)
+       if(op==1) tmpc=chi_loc(k_,k__,l_,l__,i_,1)
+       if(op==2) tmpc=chi_loc(k_,k__,l_,l__,i_,2)
        write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)) &
                            & ,real(tmpc),aimag(tmpc)
       enddo
