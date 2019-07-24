@@ -118,18 +118,18 @@ real(8)    :: cp_muppdn_cdup(:,:,:)
 real(8)    :: cp_pupmdn_cddn(:,:,:)
 real(8)    :: cp_mupmdn_cdup(:,:,:)
 real(8)    :: cp_mupmdn_cddn(:,:,:)
-real(8)    ::   cp_m2dn_cddn(:,:,:)
+reali(8)    ::   cp_m2dn_cddn(:,:,:)
 real(8)    :: boltzZ
 complex(8) :: cDNDN,cUPDN,xi1,yi1,xi2,yi2
 integer    :: dimi,diml,dimk,dimj,i,j,k,l,stati,stati_,u_,d_
 real(8)    :: cutoff
 real(8)    :: d1,d2
-real(8)    :: cccc, cccc_cutoff
+real(8)    :: cccc, cccc_cutoff, cccct(norb,norb,norb,norb)
 integer :: norb, nomg, iomg
 complex(8) :: frequ_(nomg,3)
 complex(8) :: chi_loc(nomg,norb,norb,norb,norb,2)
 real(8) :: st,ft
-logical :: bypass=.false.
+logical :: bypass=.false., connect
 integer :: rank,size2
 !various notation for the same thing
 u_=k_;
@@ -138,15 +138,18 @@ cccc_cutoff  = 1d-10
 cutoff=1d-4
 
 
-          !$OMP PARALLEL DEFAULT(NONE)   SHARED(cp_i_E,cp_mdn_cddn,cp_mdn_E,k_,k__,l_,l__,nomg,stati,cccc_cutoff,beta,&
-          !$OMP dim_E_pdn,dim_E_i,cp_pdn_E,frequ_,PHI_EPS,boltzZ,cp_i_cddn,op,st,ft,ndn,sites, cp_p2dn_E,dim_E_m2dn,&
+          !$OMP PARALLEL DEFAULT(NONE)   SHARED(cp_i_E,cp_mdn_cddn,cp_mdn_E,nomg,stati,cccc_cutoff,beta,&
+          !$OMP dim_E_pdn,dim_E_i,cp_pdn_E,frequ_,PHI_EPS,boltzZ,cp_i_cddn,op,ndn,sites, cp_p2dn_E,dim_E_m2dn,&
           !$OMP dim_E_mdn,dim_E_p2dn,cp_pdn_cddn,cp_m2dn_cddn,cp_m2dn_E,nup,dim_e_pup,cp_i_cdup,cp_pup_e,dim_e_puppdn,&
           !$OMP cp_pup_cddn,cp_puppdn_e,cp_pdn_cdup,dim_e_muppdn,dim_e_mup,cp_mup_cdup,cp_mup_cddn,cp_muppdn_e,cp_mup_e,&
           !$OMP cp_muppdn_cdup,dim_e_pupmdn,cp_mdn_cdup,cp_pupmdn_e,cp_pupmdn_cddn,dim_e_mupmdn,cp_mupmdn_cdup,cp_mupmdn_e,&
           !$OMP  cp_mupmdn_cddn,gse,Z,cutoff,dimi,norb,rank,size2)&
           !$OMP reduction(+:chi_loc) &
-          !$OMP PRIVATE(xi1,xi2,yi1,yi2,cccc,diml,dimk,dimj,iomg)
-
+          !$OMP PRIVATE(xi1,xi2,yi1,yi2,cccc,diml,dimk,dimj,iomg,k_,k__,l_,l__,cccct,connect,st,ft)
+k_ = 1
+l__ = 1
+k__ = 1
+k__ = 1
 
 
    do stati=1,dim_E_i
@@ -154,17 +157,9 @@ cutoff=1d-4
     boltzZ = exp(-(cp_i_E(stati)-gsE)*beta)/Z;
 
     if(boltzZ<cutoff) cycle
-
     dimi = dim_E_i
-    do k_ = 1,norb
-       do k__ = 1,norb
-    do l_ = 1,norb
-       do l__ = 1,norb
 
-    if(op == 1 .and. (k__==k_.and.l__==l_.and.k_==l__))then
-
-            st = omp_get_wtime()
-
+    if(op == 1 )then
 
             if(ndn/=sites) then
 
@@ -172,18 +167,38 @@ cutoff=1d-4
             diml = dim_E_pdn
             dimk = dim_E_i;
             dimj = dim_E_pdn;
+
             !$OMP DO  SCHEDULE(DYNAMIC)
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
-                if (abs(cccc) < cccc_cutoff) cycle
-                do iomg=rank+1,nomg,size2
-                xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-                xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc * (xi1+xi2)
-             enddo
-
+                  connect = .false.
+                   do k_ = 1,norb
+                      do k__ = 1, norb
+                         do l_ = 1,norb
+                            do l__ =1,norb
+                               if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                               cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati);
+                               if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                            enddo
+                         enddo
+                      enddo
+                   enddo
+                   if (.not. connect) cycle
+                   do iomg=rank+1,nomg,size2
+                      xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+                      xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  * (xi1+xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+                   enddo
           enddo;enddo;enddo
           !$OMP END DO NOWAIT
 
@@ -191,12 +206,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,j,+stati)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                         cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k_,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
                   do iomg=rank+1,nomg,size2
                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -213,12 +249,34 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+                  connect = .false.
+                  do k_ = 1,norb
+                     do k__ = 1, norb
+                        do l_ = 1,norb
+                           do l__ =1,norb
+                              if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                              cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k_,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(k_,l,+stati)
+                              if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                           enddo
+                        enddo
+                     enddo
+                  enddo
+                  if(.not. connect) cycle
+
                   do iomg=rank+1,nomg,size2
                   xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                   xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1) + cccc *  (xi1+xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1) + cccct(l__,l_,k__,k_)  *  (xi1+xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -226,17 +284,43 @@ cutoff=1d-4
             diml = dim_E_mdn;
             dimk = dim_E_pdn;
             dimj = dim_E_i;
+
+
             !$OMP DO SCHEDULE(DYNAMIC)
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k_,k,+stati)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k_,k,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
+
                   do iomg=rank+1,nomg,size2
                 yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                 yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
@@ -248,14 +332,37 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_mdn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(k_,l,+k) * cp_mdn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                 xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                 xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1+xi2)
-                enddo
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi1+xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
+                   enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
 
@@ -264,23 +371,47 @@ cutoff=1d-4
             dimj = dim_E_mdn;
             !$OMP DO SCHEDULE(DYNAMIC)
             do j =1, dimj;
-            do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_i_cddn(k_,k,+l) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+                  do k =1, dimk;
+
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_i_cddn(k_,k,+l) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
-                yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
+                yi1 =PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                 yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
+             ft = omp_get_wtime()
 
         endif
 
         if(ndn<sites-1)then
-
             diml = dim_E_p2dn;
             dimk = dim_E_pdn;
             dimj = dim_E_pdn;
@@ -288,33 +419,85 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(k_,l,+j) * cp_i_cddn(k_,j,+stati)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(k_,l,+j) * cp_i_cddn(k_,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                 yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                 yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
+
             diml = dim_E_pdn;
             dimk = dim_E_p2dn;
             dimj = dim_E_pdn;
+            st = omp_get_wtime()
+
             !$OMP DO SCHEDULE(DYNAMIC)
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k_,k,+l) * cp_i_cddn(k_,l,+stati)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k_,k,+l) * cp_i_cddn(k_,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                 xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                 xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1+xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi1+xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
+             ft = omp_get_wtime()
+             print*,ft-st
+
         endif
 
         if(ndn>1)then
@@ -325,13 +508,36 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(k_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                 yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                 yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
@@ -343,13 +549,36 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k_,stati,+l)* cp_m2dn_cddn(k_,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                 yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                 yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
@@ -364,17 +593,39 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k_,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                 xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                 xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
 
-                chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1+xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi1+xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
-            st = omp_get_wtime()
             diml = dim_E_mdn;
             dimk = dim_E_mdn;
             dimj = dim_E_i;
@@ -382,12 +633,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k_,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff ) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k_,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k_,j,+k) * cp_mdn_cddn(k_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                   yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                   yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__==k_.and.l__==l_.and.k_==l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -399,7 +673,7 @@ cutoff=1d-4
 
      endif
 
-   if(op == 1 .and. (k__/=k_.or.l__/=l_.or.k_/=l__))then
+   if(op == 1)then
 
 
 ! For UPDN *all* terms are important:
@@ -443,12 +717,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_i_cddn(k__,j,+k) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_i_cddn(k__,j,+k) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -457,12 +754,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_i_cddn(k__,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_i_cddn(k__,j,+k) * cp_i_cddn(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -470,12 +790,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k__,j,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cddn(k_,j,+k) * cp_i_cddn(k__,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  ( yi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -484,12 +827,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cddn(l_,j,+k) * cp_i_cddn(k_,j,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cddn(l_,j,+k) * cp_i_cddn(k_,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -506,12 +872,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k__,stati,+j)* cp_mdn_cddn(k_,k,+j) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1) + cccc * (xi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1) + cccct(l__,l_,k__,k_)  * (xi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -521,13 +910,36 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+j)* cp_mdn_cddn(l_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k__,stati,+j)* cp_mdn_cddn(l_,k,+j) * cp_i_cddn(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
 
                   xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1) + cccc * (xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1) + cccct(l__,l_,k__,k_)  * (xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -540,12 +952,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k__,k,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_i_cddn(k_,k,+j) * cp_i_cddn(k__,k,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -554,12 +989,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(l_,k,+j) * cp_i_cddn(k__,k,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(k_,j,+l) * cp_i_cddn(l_,k,+j) * cp_i_cddn(k__,k,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -572,12 +1030,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_mdn_cddn(k__,k,+j) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_mdn_cddn(k__,k,+j) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -587,12 +1068,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_mdn_cddn(k__,k,+j) * cp_mdn_cddn(l_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_mdn_cddn(k__,k,+j) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (+xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -605,12 +1109,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_i_cddn(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_i_cddn(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -618,12 +1145,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_i_cddn(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_i_cddn(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -638,12 +1188,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(l_,l,+k) * cp_pdn_cddn(l__,l,+j) * cp_i_cddn(k__,j,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_pdn_cddn(l_,l,+k) * cp_pdn_cddn(l__,l,+j) * cp_i_cddn(k__,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  ( yi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -651,12 +1224,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(l__,l,+j) * cp_i_cddn(k__,j,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_pdn_cddn(k_,l,+k) * cp_pdn_cddn(l__,l,+j) * cp_i_cddn(k__,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -667,12 +1263,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k__,k,+l) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_pdn_cddn(k_,k,+j) * cp_pdn_cddn(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -680,12 +1299,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(l_,k,+j) * cp_pdn_cddn(k__,k,+l) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(k_,j,+stati)* cp_pdn_cddn(l_,k,+j) * cp_pdn_cddn(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -700,12 +1342,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_m2dn_cddn(k__,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(l_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_m2dn_cddn(k__,l,+j) * cp_m2dn_cddn(k_,k,+j) * cp_mdn_cddn(l_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -713,12 +1378,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_m2dn_cddn(k__,l,+j) * cp_m2dn_cddn(l_,k,+j) * cp_mdn_cddn(k_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_m2dn_cddn(k__,l,+j) * cp_m2dn_cddn(l_,k,+j) * cp_mdn_cddn(k_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -730,12 +1418,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+l)* cp_m2dn_cddn(l__,l,+k) * cp_m2dn_cddn(l_,j,+k) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k__,stati,+l)* cp_m2dn_cddn(l__,l,+k) * cp_m2dn_cddn(l_,j,+k) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  ( yi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -743,12 +1454,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+l)* cp_m2dn_cddn(l__,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(l_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k__,stati,+l)* cp_m2dn_cddn(l__,l,+k) * cp_m2dn_cddn(k_,j,+k) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) = chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) = chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -763,12 +1497,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+k) * cp_mdn_cddn(l_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k__,stati,+k) * cp_mdn_cddn(l_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -776,12 +1533,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(k__,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(k__,stati,+k) * cp_mdn_cddn(k_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (xi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (xi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -793,12 +1573,35 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k__,j,+k) * cp_mdn_cddn(l_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l) * cp_mdn_cddn(k_,j,+l) * cp_mdn_cddn(k__,j,+k) * cp_mdn_cddn(l_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
 
                   yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  ( yi1)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  ( yi1)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -806,11 +1609,34 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l) * cp_mdn_cddn(l_,j,+l) * cp_mdn_cddn(k__,j,+k) * cp_mdn_cddn(k_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                     do l__ =1,norb
+                        if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                        cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l) * cp_mdn_cddn(l_,j,+l) * cp_mdn_cddn(k__,j,+k) * cp_mdn_cddn(k_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                   yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,1) =chi_loc(iomg,k_,k__,l_,l__,1)+ cccc *  (+yi2)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  if(.not.(k__/=k_.or.l__/=l_.or.k_/=l__)) cycle
+                                  chi_loc(iomg,l__,l_,k__,k_,1) =chi_loc(iomg,l__,l_,k__,k_,1)+ cccct(l__,l_,k__,k_)  *  (+yi2)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -831,11 +1657,32 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cdup(k_,j,+stati)* cp_i_cdup(k__,j,+k) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cdup(k_,j,+stati)* cp_i_cdup(k__,j,+k) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   do iomg=rank+1,nomg,size2
                      xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -847,12 +1694,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cdup(k_,j,+k) * cp_i_cdup(k__,j,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cdup(k_,j,+k) * cp_i_cdup(k__,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                      xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -864,12 +1732,33 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     cccc = boltzZ *  cp_i_cdup(k_,k,stati)* cp_pup_cddn(l_,l,+k) * cp_pup_cddn(l__,l,+j) * cp_i_cdup(k__,j,+stati)
-                     if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cdup(k_,k,stati)* cp_pup_cddn(l_,l,+k) * cp_pup_cddn(l__,l,+j) * cp_i_cdup(k__,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                      do iomg=rank+1,nomg,size2
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pup_E(k),cp_puppdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
-                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                      enddo
                   enddo;enddo;enddo
                   !$OMP END DO NOWAIT
@@ -881,13 +1770,34 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_pdn_cdup(k_,k,+j) * cp_pdn_cdup(k__,k,+l) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_pdn_cdup(k_,k,+j) * cp_pdn_cdup(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
 
                   do iomg=rank+1,nomg,size2
                      xi1   = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_puppdn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-                     chi_loc(iomg,k_,k__,l_,l__,2) = chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) = chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
                enddo;enddo;enddo
                !$OMP END DO NOWAIT
@@ -899,11 +1809,32 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     if (abs(cccc) < cccc_cutoff) cycle
-                     cccc = boltzZ *  cp_i_cdup(k_,j,stati)* cp_pup_cddn(l_,k,+j) * cp_pdn_cdup(k__,k,+l) * cp_i_cddn(l__,l,+stati)
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cdup(k_,j,stati)* cp_pup_cddn(l_,k,+j) * cp_pdn_cdup(k__,k,+l) * cp_i_cddn(l__,l,+stati)
                      do iomg=rank+1,nomg,size2
                      xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_puppdn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
-                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - xi1 * cccc
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - xi1 * cccct(l__,l_,k__,k_)
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
                enddo;enddo;enddo
@@ -916,12 +1847,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_pdn_cdup(k_,l,+k) * cp_pup_cddn(l__,l,+j) * cp_i_cdup(k__,j,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,k,+stati)* cp_pdn_cdup(k_,l,+k) * cp_pup_cddn(l__,l,+j) * cp_i_cdup(k__,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pdn_E(k),cp_puppdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -937,12 +1889,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+k)* cp_mup_cddn(l_,l,+k) * cp_mup_cddn(l__,l,+j) * cp_mup_cdup(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mup_cdup(k__,stati,+k)* cp_mup_cddn(l_,l,+k) * cp_mup_cddn(l__,l,+j) * cp_mup_cdup(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_mup_E(k),cp_muppdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -956,11 +1929,32 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                   do iomg=rank+1,nomg,size2
-                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+j)* cp_mup_cdup(k_,k,+j) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
-                  chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mup_cdup(k__,stati,+j)* cp_mup_cdup(k_,k,+j) * cp_i_cddn(l_,l,+k) * cp_i_cddn(l__,l,+stati)
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                enddo
 
 
@@ -974,11 +1968,32 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     cccc = boltzZ *  cp_i_cddn(l_,l,stati)* cp_i_cddn(l__,l,+k) * cp_mup_cdup(k__,k,+j) * cp_mup_cdup(k_,stati,+j)
-                     if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,l,stati)* cp_i_cddn(l__,l,+k) * cp_mup_cdup(k__,k,+j) * cp_mup_cdup(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                      xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                      do iomg=rank+1,nomg,size2
-                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                      enddo
 
 
@@ -991,11 +2006,32 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ * cp_i_cddn(l_,k,+stati)* cp_muppdn_cdup(k__,k,+l) * cp_mup_cddn(l__,l,+j) * cp_mup_cdup(k_,stati,+j);
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ * cp_i_cddn(l_,k,+stati)* cp_muppdn_cdup(k__,k,+l) * cp_mup_cddn(l__,l,+j) * cp_mup_cdup(k_,stati,+j);
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
                   xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_pdn_E(k),cp_muppdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                   do iomg=rank+1,nomg,size2
-                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
 
@@ -1009,12 +2045,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+j)* cp_mup_cddn(l_,k,+j) * cp_muppdn_cdup(k_,l,+k) * cp_i_cddn(l__,l,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mup_cdup(k__,stati,+j)* cp_mup_cddn(l_,k,+j) * cp_muppdn_cdup(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_muppdn_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1028,12 +2085,33 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     cccc = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_muppdn_cdup(k__,j,+k) * cp_muppdn_cdup(k_,l,+k) * cp_i_cddn(l__,l,+stati)
-                     if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cddn(l_,j,+stati)* cp_muppdn_cdup(k__,j,+k) * cp_muppdn_cdup(k_,l,+k) * cp_i_cddn(l__,l,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                      do iomg=rank+1,nomg,size2
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_muppdn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc *xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  *xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                      enddo
 
 
@@ -1049,12 +2127,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cdup(k_,j,+l) * cp_mdn_cdup(k__,j,+k) * cp_mdn_cddn(l_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cdup(k_,j,+l) * cp_mdn_cdup(k__,j,+k) * cp_mdn_cddn(l_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1067,12 +2166,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cdup(k_,k,+stati)* cp_i_cdup(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cdup(k_,k,+stati)* cp_i_cdup(k__,k,+l) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pup_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1085,12 +2205,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_i_cdup(k_,k,+j) * cp_i_cdup(k__,k,+stati)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_i_cdup(k_,k,+j) * cp_i_cdup(k__,k,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pup_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1103,11 +2244,32 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     if (abs(cccc) < cccc_cutoff) cycle
-                     cccc = boltzZ *  cp_mdn_cddn(l__,stati,l)* cp_mdn_cdup(k_,j,+l) * cp_pupmdn_cddn(l_,k,+j) * cp_i_cdup(k__,k,+stati)
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,l)* cp_mdn_cdup(k_,j,+l) * cp_pupmdn_cddn(l_,k,+j) * cp_i_cdup(k__,k,+stati)
                      do iomg=rank+1,nomg,size2
                      xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_pup_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
-                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) -  cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) -  cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
 
@@ -1120,12 +2282,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_i_cdup(k_,l,+stati)* cp_pupmdn_cddn(l__,l,+k) * cp_mdn_cdup(k__,k,+j) * cp_mdn_cddn(l_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cdup(k_,l,+stati)* cp_pupmdn_cddn(l__,l,+k) * cp_mdn_cdup(k__,k,+j) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_pupmdn_E(k),cp_pup_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1138,12 +2321,33 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     cccc = boltzZ *  cp_i_cdup(k_,l,stati)* cp_pupmdn_cddn(l__,l,+k) * cp_pupmdn_cddn(l_,j,+k) * cp_i_cdup(k__,j,+stati)
-                     if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_i_cdup(k_,l,stati)* cp_pupmdn_cddn(l__,l,+k) * cp_pupmdn_cddn(l_,j,+k) * cp_i_cdup(k__,j,+stati)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                      do iomg=rank+1,nomg,size2
                         xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_pupmdn_E(k),cp_pup_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                      enddo
 
 
@@ -1159,13 +2363,34 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mupmdn_cdup(k__,l,+j) * cp_mupmdn_cdup(k_,k,+j) * cp_mdn_cddn(l_,stati,+k)
-                     if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mupmdn_cdup(k__,l,+j) * cp_mupmdn_cdup(k_,k,+j) * cp_mdn_cddn(l_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
 
                      do iomg=rank+1,nomg,size2
                         xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
-                        chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                      enddo
 
 
@@ -1178,12 +2403,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+l)* cp_mupmdn_cddn(l__,l,+k) * cp_mupmdn_cddn(l_,j,+k) * cp_mup_cdup(k_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mup_cdup(k__,stati,+l)* cp_mupmdn_cddn(l__,l,+k) * cp_mupmdn_cddn(l_,j,+k) * cp_mup_cdup(k_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_mupmdn_E(k),cp_mup_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1196,13 +2442,34 @@ cutoff=1d-4
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
-                     cccc = boltzZ *  cp_mup_cdup(k__,stati,l)* cp_mupmdn_cddn(l__,l,+k) * cp_mupmdn_cdup(k_,j,+k) * cp_mdn_cddn(l_,stati,+j)
-                     if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                     cccct(l__,l_,k__,k_)  = boltzZ *  cp_mup_cdup(k__,stati,l)* cp_mupmdn_cddn(l__,l,+k) * cp_mupmdn_cdup(k_,j,+k) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                      do iomg=rank+1,nomg,size2
                      xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_mupmdn_E(k),cp_mup_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
-                     chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                   enddo
 
 
@@ -1215,12 +2482,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mupmdn_cdup(k__,l,+j) * cp_mupmdn_cddn(l_,k,+j) * cp_mup_cdup(k_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mupmdn_cdup(k__,l,+j) * cp_mupmdn_cddn(l_,k,+j) * cp_mup_cdup(k_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mup_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) + cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) + cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1233,12 +2521,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mup_cdup(k__,stati,+k)* cp_mup_cdup(k_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mup_cdup(k__,stati,+k)* cp_mup_cdup(k_,l,+k) * cp_mdn_cddn(l__,l,+j) * cp_mdn_cddn(l_,stati,+j)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mup_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-               chi_loc(iomg,k_,k__,l_,l__,2) =chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) =chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
             enddo
 
 
@@ -1251,12 +2560,33 @@ cutoff=1d-4
             do j =1, dimj;
             do k =1, dimk;
                do l =1, diml;
-                  cccc = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_mup_cdup(k__,j,+k) * cp_mup_cdup(k_,stati,+k)
-                  if (abs(cccc) < cccc_cutoff) cycle
+	connect = .false.
+	do k_ = 1,norb
+            do k__ = 1, norb
+                  do l_ = 1,norb
+                      do l__ =1,norb
+                  cccct(l__,l_,k__,k_)  = boltzZ *  cp_mdn_cddn(l__,stati,+l)* cp_mdn_cddn(l_,j,+l) * cp_mup_cdup(k__,j,+k) * cp_mup_cdup(k_,stati,+k)
+                         if(abs(cccct(l__,l_,k__,k_)) >cccc_cutoff) connect = .true.
+                      enddo
+                   enddo
+                enddo
+             enddo
+             if(.not. connect) cycle
+
+
 
                   do iomg=rank+1,nomg,size2
                   xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mup_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-                  chi_loc(iomg,k_,k__,l_,l__,2) = chi_loc(iomg,k_,k__,l_,l__,2) - cccc * xi1
+                      do k_ = 1,norb
+                         do k__ = 1, norb
+                            do l_ = 1,norb
+                               do l__ =1,norb
+                                  chi_loc(iomg,l__,l_,k__,k_,2) = chi_loc(iomg,l__,l_,k__,k_,2) - cccct(l__,l_,k__,k_)  * xi1
+                               enddo
+                            enddo
+                         enddo
+                      enddo
+
                enddo
 
 
@@ -1265,10 +2595,6 @@ cutoff=1d-4
         endif
 
      endif
-     enddo
-  enddo
-enddo
-enddo
 
  enddo
  !$OMP END PARALLEL

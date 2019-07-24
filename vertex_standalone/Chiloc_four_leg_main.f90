@@ -253,7 +253,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      if(rank==0) write(*,*) 'OMEGA / FREQ / TOT  = ', kkk_,i_,j_
 
      do i=1,nsector
-
+        print*,i
        call loop_index_verbose
        call fix_dim
        call fix_bounds
@@ -273,6 +273,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      &    cp_mup_cddn,       cp_mdn_cddn,       cp_mdn_cdup,       cp_muppdn_cdup,   &
      &    cp_pupmdn_cddn,    cp_mupmdn_cdup,    cp_mupmdn_cddn,    cp_m2dn_cddn,     &
      &    norb,j_,frequ_,rank,size2,chi_loc )
+        print*,Chi_loc(1,1,1,1,1,1)
           if(verbose)then
            if(op==1) write(*,*) 'pDNDN = ', pDNDN
            if(op==2) write(*,*) 'pUPDN = ', pUPDN
@@ -290,7 +291,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
     Chi_spin   = ( chi_loc(:,:,:,:,:,1)-chi_loc (:,:,:,:,:,2) )/spindeg
     Chi0_charge= (Chi0_loc(:,:,:,:,:,1)+Chi0_loc(:,:,:,:,:,2) )/chargedeg
     Chi0_spin  = (Chi0_loc(:,:,:,:,:,1)-Chi0_loc(:,:,:,:,:,2) )/spindeg
-    call write_chiloc
+    if(rank == 0) call write_chiloc
 !    call write_results_fermionic
 
 
