@@ -2,7 +2,7 @@
 #########################################################################
   SHELL       =  /bin/bash
   FCOMPL      =  mpif90
-  FFLAG       =  -O1  -fopenmp -ffree-line-length-2000 -ffree-line-length-4000 -lstdc++
+  FFLAG       =  -O3  -fopenmp -ffree-line-length-2000 -ffree-line-length-4000 -lstdc++
 
   MODFILES    = -I/home/jamet/src/ed/ed_cweber/ed_solver/MODFILES
   LIB         = -L/home/jamet/src/ed/ed_cweber/ed_solver/ -ldmftsolverED -lsplines

@@ -272,8 +272,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      &    cp_pup_cddn,       cp_pdn_cdup,       cp_pdn_cddn,       cp_mup_cdup,      &
      &    cp_mup_cddn,       cp_mdn_cddn,       cp_mdn_cdup,       cp_muppdn_cdup,   &
      &    cp_pupmdn_cddn,    cp_mupmdn_cdup,    cp_mupmdn_cddn,    cp_m2dn_cddn,     &
-     &    norb,j_,frequ_,chi_loc )
-
+     &    norb,j_,frequ_,rank,size2,chi_loc )
           if(verbose)then
            if(op==1) write(*,*) 'pDNDN = ', pDNDN
            if(op==2) write(*,*) 'pUPDN = ', pUPDN
@@ -281,11 +280,11 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      enddo !sector
     enddo ! dndn or updn
 
-    ! do k_=1,norb
-    !  do l_=1,norb
-    !   call mpisum(chi_loc(k_,l_,:,:,:,:))
-    !  enddo
-    ! enddo
+    do i_=1,j_
+     do l_=1,norb
+      call mpisum(chi_loc(i_,l_,:,:,:,:))
+     enddo
+    enddo
 
     Chi_charge = ( chi_loc(:,:,:,:,:,1)+chi_loc (:,:,:,:,:,2) )/chargedeg
     Chi_spin   = ( chi_loc(:,:,:,:,:,1)-chi_loc (:,:,:,:,:,2) )/spindeg
@@ -517,7 +516,7 @@ subroutine init
      !stop
 
      PHI_EPS=0.00001
-     cutoff=1.d-7
+     cutoff=1.d-5
      def=0.d0
      path=.true.
 
@@ -643,7 +642,7 @@ subroutine allocate_arrays
      if(allocated(Chi_charge))        deallocate(Chi_charge)
      if(allocated(Chi_spin))          deallocate(Chi_spin)
      if(allocated(Chi0_spin))         deallocate(Chi0_spin)
-     allocate(Chi0_charge(norb,norb,norb,norb,j_),Chi_charge(norb,norb,norb,norb,j_),Chi_spin(norb,norb,norb,norb,j_),Chi0_spin(norb,norb,norb,norb,j_))
+     allocate(Chi0_charge(j_,norb,norb,norb,norb),Chi_charge(j_,norb,norb,norb,norb),Chi_spin(j_,norb,norb,norb,norb),Chi0_spin(j_,norb,norb,norb,norb))
      allocate(Chi_vertex_spin(norb,norb,norb,norb,j_),Chi_vertex_charge(norb,norb,norb,norb,j_))
      allocate(mu_(j_),nu_(j_),frequ_(j_,3),frequ__(j_,3))
      allocate(chi_loc(j_,norb,norb,norb,norb,2))
