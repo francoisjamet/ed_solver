@@ -118,7 +118,7 @@ real(8)    :: cp_muppdn_cdup(:,:,:)
 real(8)    :: cp_pupmdn_cddn(:,:,:)
 real(8)    :: cp_mupmdn_cdup(:,:,:)
 real(8)    :: cp_mupmdn_cddn(:,:,:)
-reali(8)    ::   cp_m2dn_cddn(:,:,:)
+real(8)    ::   cp_m2dn_cddn(:,:,:)
 real(8)    :: boltzZ
 complex(8) :: cDNDN,cUPDN,xi1,yi1,xi2,yi2
 integer    :: dimi,diml,dimk,dimj,i,j,k,l,stati,stati_,u_,d_
@@ -496,7 +496,6 @@ k__ = 1
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
              ft = omp_get_wtime()
-             print*,ft-st
 
         endif
 
