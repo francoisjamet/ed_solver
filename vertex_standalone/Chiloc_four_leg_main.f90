@@ -259,7 +259,6 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
        call allocate_cp
        call assign_cp_eigen
        call assign_cp_matrices
-
         call chi_tilde_loc( &
      &    cutoff, op, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i), &
      &    cp_i_E,            dim_E_i,           cp_pup_E,          dim_E_pup,        &
@@ -275,7 +274,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
           if(verbose)then
            if(op==1) write(*,*) 'pDNDN = ', pDNDN
            if(op==2) write(*,*) 'pUPDN = ', pUPDN
-          endif
+        endif
      enddo !sector
     enddo ! dndn or updn
 
@@ -520,7 +519,7 @@ subroutine init
      path=.true.
 
      if(path) then
-       nomega=2
+       nomega=1
        roaming=.false.
        vertex_gpu=.false.
      else
