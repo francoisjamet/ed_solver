@@ -221,7 +221,7 @@ integer :: omegai,nui,mui
 real(8),allocatable :: omega_array(:)
 integer :: nomega
 integer :: kkk_,kkk,lll_,Nc,k_,l_,k__,l__
-real(8) :: spindeg,chargedeg,cutoff,def,diff
+real(8) :: spindeg,chargedeg,cutoff,cccc_cutoff,def,diff
 logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
 
    call init()
@@ -247,20 +247,26 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
    chargedeg = 1.d0 ;  spindeg = 1.d0
 
    chi_loc = 0.d0
-
+   open(unit=10001,file='cutoff')
+   read(10001,*) cutoff
+   read(10001,*) cccc_cutoff
+   print*,'cutoff=',cutoff
+   print*,'cccc_cutoff=',cccc_cutoff
    do op=1,2 ! dndn and updn terms
 
      if(rank==0) write(*,*) 'OMEGA / FREQ / TOT  = ', kkk_,i_,j_
 
      do i=1,nsector
+
        call loop_index_verbose
        call fix_dim
        call fix_bounds
        call allocate_cp
        call assign_cp_eigen
        call assign_cp_matrices
+
         call chi_tilde_loc( &
-     &    cutoff, op, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i), &
+     &    cutoff, cccc_cutoff, op, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i),  &
      &    cp_i_E,            dim_E_i,           cp_pup_E,          dim_E_pup,        &
      &    cp_pdn_E,          dim_E_pdn,         cp_mup_E,          dim_E_mup,        &
      &    cp_mdn_E,          dim_E_mdn,         cp_p2dn_E,         dim_E_p2dn,       &
@@ -271,18 +277,19 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      &    cp_mup_cddn,       cp_mdn_cddn,       cp_mdn_cdup,       cp_muppdn_cdup,   &
      &    cp_pupmdn_cddn,    cp_mupmdn_cdup,    cp_mupmdn_cddn,    cp_m2dn_cddn,     &
      &    norb,j_,frequ_,rank,size2,chi_loc )
+
           if(verbose)then
            if(op==1) write(*,*) 'pDNDN = ', pDNDN
            if(op==2) write(*,*) 'pUPDN = ', pUPDN
         endif
      enddo !sector
-    enddo ! dndn or updn
+  enddo ! dndn or updn
 
-    do i_=1,j_
-     do l_=1,norb
-      call mpisum(chi_loc(i_,l_,:,:,:,:))
-     enddo
-    enddo
+    ! do k_=1,norb
+    !  do l_=1,norb
+    !   call mpisum(chi_loc(k_,l_,:,:,:,:))
+    !  enddo
+    ! enddo
 
     Chi_charge = ( chi_loc(:,:,:,:,:,1)+chi_loc (:,:,:,:,:,2) )/chargedeg
     Chi_spin   = ( chi_loc(:,:,:,:,:,1)-chi_loc (:,:,:,:,:,2) )/spindeg
@@ -514,7 +521,6 @@ subroutine init
      !stop
 
      PHI_EPS=0.00001
-     cutoff=1.d-5
      def=0.d0
      path=.true.
 
@@ -640,10 +646,10 @@ subroutine allocate_arrays
      if(allocated(Chi_charge))        deallocate(Chi_charge)
      if(allocated(Chi_spin))          deallocate(Chi_spin)
      if(allocated(Chi0_spin))         deallocate(Chi0_spin)
-     allocate(Chi0_charge(j_,norb,norb,norb,norb),Chi_charge(j_,norb,norb,norb,norb),Chi_spin(j_,norb,norb,norb,norb),Chi0_spin(j_,norb,norb,norb,norb))
+     allocate(Chi0_charge(j_,norb,norb,norb,norb),Chi_charge(norb,norb,norb,norb,j_),Chi_spin(norb,norb,norb,norb,j_),Chi0_spin(j_,norb,norb,norb,norb))
      allocate(Chi_vertex_spin(norb,norb,norb,norb,j_),Chi_vertex_charge(norb,norb,norb,norb,j_))
      allocate(mu_(j_),nu_(j_),frequ_(j_,3),frequ__(j_,3))
-     allocate(chi_loc(j_,norb,norb,norb,norb,2))
+     allocate(chi_loc(norb,norb,norb,norb,j_,2))
      allocate(frequ_ind_orig(j_,3),frequ_ind(j_,3),Chi0_loc(norb,norb,norb,norb,j_,2))
 end subroutine
 
@@ -792,7 +798,7 @@ subroutine allocate_cp()
 
 !################################################
 ! allocate arrays of eigenvalues ################
-! ###############################################
+     ! ###############################################
      allocate(      cp_i_E(max( dim_E_i     ,1 )  ) )
      allocate(    cp_pup_E(max( dim_E_pup   ,1 )  ) )
      allocate(    cp_pdn_E(max( dim_E_pdn   ,1 )  ) )
@@ -1026,8 +1032,8 @@ subroutine write_chiloc
               open(unit=8080,file='chiloc_spin_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
               open(unit=8081,file='chiloc_charge_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
               do om = 1, j_
-                 write(8080,*) real(Chi_spin(om,i1,i2,i3,i4)), aimag(Chi_spin(om,i1,i2,i3,i4))
-                 write(8081,*) real(Chi_charge(om,i1,i2,i3,i4)), aimag(Chi_charge(om,i1,i2,i3,i4))
+                 write(8080,*) real(Chi_spin(i1,i2,i3,i4,om)), aimag(Chi_spin(i1,i2,i3,i4,om))
+                 write(8081,*) real(Chi_charge(i1,i2,i3,i4,om)), aimag(Chi_charge(i1,i2,i3,i4,om))
               enddo
               close(8080)
               close(8081)
