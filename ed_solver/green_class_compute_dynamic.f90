@@ -24,7 +24,7 @@ CONTAINS
 !**************************************************************************
 
   SUBROUTINE compute_dynamic(iph,dyn,freq,Opm,stat,title,normvec,iisector,GS,keldysh_level)
-
+    implicit none
     INTEGER,          INTENT(IN)         :: iph
     COMPLEX(DBL),     INTENT(INOUT)      :: dyn(:)
     TYPE(freq_type),  INTENT(IN)         :: freq
@@ -41,7 +41,7 @@ CONTAINS
     endif
 
     ii=dimen_H()
-    if(ii>FULL_ED_SWITCH)then  !BUGGGGGG
+    if(ii>FULL_ED_SWITCH.or.FLAG_MPI_GREENS>0)then  !BUGGGGGG !BUG CW
     SELECT CASE (which_lanczos)
      CASE('NORMAL')
        call compute_dynamic_cpu(iph,dyn,freq,Opm,stat,title,normvec)

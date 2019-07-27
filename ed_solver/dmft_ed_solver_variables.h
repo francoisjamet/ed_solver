@@ -14,6 +14,7 @@
   call putel_in_namelist(nm,  nsec0,                 'nsec0     '            ,   1,                   'If list_sectors not provided, start to scan at nsec0 and stop to scan at nsec0+nsec')
   call putel_in_namelist(nm,  dEmax0,                'dEmax0    '           ,   5.d0,                'max. energy of excited state to consider , normalized by beta')
   call putel_in_namelist(nm,  Neigen,                'Neigen    '            ,   1                   , 'number of eigenvalues to compute')
+  call putel_in_namelist(nm,  Neigen_arpack,         'Neigen_arpack'         ,   1                   , 'number of eigenvalues to compute for arpack, keep in mind that arnoldi converges the extrema of the spectra, and hence it should be around twice Neigen')
   call putel_in_namelist(nm,  Nitermax,              'Nitermax  '            ,    128                , 'max. number of Lanczos iterations')
   call putel_in_namelist(nm,  Block_size,            'Block_size'            ,   0                   , 'Block size (0 lets the routine decide), -1 use Cullum instead')
   call putel_in_namelist(nm,  tolerance,             'tolerance '            ,   1.d-12              , 'Lanczos convergence tolerance')

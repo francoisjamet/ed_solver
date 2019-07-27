@@ -1,0 +1,11 @@
+	          connect=.false.
+                  do k__ = 1, norb
+                        do l_ = 1,norb
+                           do l__ =1,norb
+                              cccc = boltzZ *  cp_i_cddn(k_,k,+stati)* cp_i_cddn(k_,k,+l) * cp_mdn_cddn(k_,l,+j) * cp_mdn_cddn(k_,stati,+j)
+                              if (abs(cccc) < cccc_cutoff ) cycle
+                           enddo
+                        enddo
+                     enddo
+                  enddo
+                  if(.not. connect) cycle

@@ -30,45 +30,6 @@ contains
 !####################################################!
 !####################################################!
 !####################################################!
-!**********************************************************************************
-
-function ddot_(xx,yy)
-implicit none
-integer                         ::  j
-real(8),dimension(:),intent(in) ::  xx,yy
-real(8)                         ::  ddot_
- ddot_=0.
- do j=1,size(xx)
-  ddot_=ddot_+xx(j)*yy(j)
- enddo
-end function
-
-!**********************************************************************************
-
-function sdot_(x,y)
-implicit none
-integer ::j
-real(4),dimension(:),intent(in) ::  x,y
-real(8) :: sdot_
- sdot_=0.
- do j=1,size(x)
-  sdot_=sdot_+x(j)*y(j)
- enddo
-end function
-
-!**********************************************************************************
-
-function idot_(u,v)
-implicit none
-integer,dimension(:),intent(in) ::u,v
-real(8) :: idot_
-integer :: j
- idot_=0.
- do j=1,size(u)
-  idot_=idot_+dble(u(j)*v(j))
- enddo
-end function
-
 !####################################################!
 !####################################################!
 !####################################################!
@@ -142,7 +103,7 @@ end function
   TYPE(eigensectorlist_type)                :: GS
   TYPE(cdagger_mat)                         :: cup(GS%nsector),cdn(GS%nsector)
   TYPE(AIM_type)                            :: AIM
-  integer                                   :: kkk,itot,i,j,k,nup,ndn
+  integer                                   :: kkk,itot,i,j,k,nup,ndn,ii
   integer                                   :: min_up,max_up,min_dn,max_dn
   real(8)                                   :: beta,ZZ
 
@@ -158,36 +119,64 @@ end function
      write(*,*) 'nup ranging : ',min_up,max_up
      write(*,*) 'nup ranging : ',min_dn,max_dn
      if(verbose) write(*,*) 'writing chiloc'
-     open(unit=1414,file='chiloc_vertex',form='unformatted')
+     if(rank==0) open(unit=1414,file='chiloc_vertex',form='unformatted')
      if(Verbose) write(*,*) AIM%impurity%Nc,ZZ,beta_ED,itot,min_up,max_up,min_dn,max_dn,GS%nsector
-     write(1414) AIM%impurity%Nc,ZZ,beta_ED,itot,min_up,max_up,min_dn,max_dn,GS%nsector
+     if(rank==0) write(1414) AIM%impurity%Nc,ZZ,beta_ED,itot,min_up,max_up,min_dn,max_dn,GS%nsector
+
+     call mpibarrier
+
      do kkk=1,AIM%impurity%Nc
+
      call four_leg_vertex_matrices(AIM,GS,Cup_sector,apply_Cup,cup,kkk)
+     call mpibarrier
      call four_leg_vertex_matrices(AIM,GS,Cdo_sector,apply_Cdo,cdn,kkk)
+     call mpibarrier
+
      do i=1,GS%nsector
-       if(verbose) write(*,*) 'sector : ', i, GS%nsector
-       if(Verbose) write(*,*) 'orbital: ', kkk
        nup=GS%es(i)%sector%updo%up%npart
        ndn=GS%es(i)%sector%updo%down%npart
+       if(FLAG_MPI_GREENS>0) then
+         ii=mod(i-1,size2)
+         call mpibcast(cup(i)%k_p,iii=ii) 
+         call mpibcast(cup(i)%l_p,iii=ii)   
+         call mpibcast(cup(i)%k_m,iii=ii)
+         call mpibcast(cup(i)%l_m,iii=ii)
+         call mpibcast(cdn(i)%k_p,iii=ii)
+         call mpibcast(cdn(i)%l_p,iii=ii)
+         call mpibcast(cdn(i)%k_m,iii=ii)
+         call mpibcast(cdn(i)%l_m,iii=ii)
+         if(rank/=ii)then
+          call allocate_dagger_p(cup(i))
+          call allocate_dagger_m(cup(i))
+          call allocate_dagger_p(cdn(i))
+          call allocate_dagger_m(cdn(i))
+         endif
+         call mpibarrier
+         call mpibcast(cup(i)%c_m,iii=ii)
+         call mpibcast(cup(i)%c_p,iii=ii)
+         call mpibcast(cdn(i)%c_m,iii=ii)
+         call mpibcast(cdn(i)%c_p,iii=ii)
+       endif 
+       call mpibarrier
        if(verbose) write(*,*) kkk,nup,ndn
-       write(1414) kkk,nup,ndn
+       if(rank==0) write(1414) kkk,nup,ndn
        if(Verbose) write(*,*) GS%es(i)%lowest%neigen
-       write(1414) GS%es(i)%lowest%neigen
-       write(1414) GS%es(i)%lowest%eigen(:)%val
+       if(rank==0) write(1414) GS%es(i)%lowest%neigen
+       if(rank==0) write(1414) GS%es(i)%lowest%eigen(:)%val
        if(Verbose) write(*,*) 'cup p'
-       write(1414) cup(i)%k_p,cup(i)%l_p
-       write(1414) cup(i)%c_p 
+       if(rank==0) write(1414) cup(i)%k_p,cup(i)%l_p
+       if(rank==0) write(1414) cup(i)%c_p 
        if(Verbose) write(*,*) 'cup '
-       write(1414) cup(i)%k_m,cup(i)%l_m
-       write(1414) cup(i)%c_m
+       if(rank==0) write(1414) cup(i)%k_m,cup(i)%l_m
+       if(rank==0) write(1414) cup(i)%c_m
        if(Verbose) write(*,*) 'cdn p'
-       write(1414) cdn(i)%k_p,cdn(i)%l_p
-       write(1414) cdn(i)%c_p
+       if(rank==0) write(1414) cdn(i)%k_p,cdn(i)%l_p
+       if(rank==0) write(1414) cdn(i)%c_p
        if(Verbose) write(*,*) 'cdn '
-       write(1414) cdn(i)%k_m,cdn(i)%l_m
-       write(1414) cdn(i)%c_m
-       if(Verbose) write(*,*) 'done'
+       if(rank==0) write(1414) cdn(i)%k_m,cdn(i)%l_m
+       if(rank==0) write(1414) cdn(i)%c_m
      enddo
+
      do i=1,GS%nsector
        call kill_cdagger(cup(i))
        call kill_cdagger(cdn(i))
@@ -195,8 +184,7 @@ end function
 
     enddo
 
-    close(1414)
-
+    if(rank==0) close(1414)
 
   return
   end subroutine
@@ -224,6 +212,7 @@ end function
     INTEGER                                   :: isector,ieigen,uup,ddn,itot,i_,v(2),issz
     INTEGER                                   :: ktot,iiorb,jjorb,kk,jj,iorb_f,jorb_f,jsector
     LOGICAL, PARAMETER                        :: linecolumn = .true. !default should be true
+    INTEGER                                   :: rank_,size2_
    !----------------------------------------------------!
     INTERFACE
     ! RETURNS SECTOR OF A,A^+|0> 
@@ -255,8 +244,15 @@ end function
 
     orb=.false.;orb(kkk)=.true.
     write(*,*) 'ORBITAL MASK : ', orb
+
+    if(FLAG_MPI_GREENS>0)then
+      rank_=rank; size2_=size2
+     else
+      rank_=0; size2_=1
+     endif
  
-    DO isector=1,GS%nsector
+    DO isector=rank_+1,GS%nsector,size2_
+         write(*,*) 'RANK SECTOR ',rank,isector
          es   => GS%es(isector)
          uup  =  GS%es(isector)%sector%updo%up%npart
          ddn  =  GS%es(isector)%sector%updo%down%npart
@@ -417,6 +413,9 @@ end function
 !=====================================================================!
 
     deallocate(orb)
+
+    write(*,*) 'RANK DONE FOUR LEG : ', rank
+    call mpibarrier
 
 return
 

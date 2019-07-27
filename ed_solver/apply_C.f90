@@ -582,7 +582,7 @@ CONTAINS
       ENDDO
 
  35   continue
-      call mpibarrier 
+      !call mpibarrier 
       call scatter_rank0(eigen_out)
 
       CALL add_eigen(eigen_out,Ces%lowest)

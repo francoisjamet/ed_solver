@@ -12,6 +12,9 @@
   implicit none
   TYPE(eigenlist_type), POINTER :: lowest
   INTEGER                       :: rank_,size2_
+  integer                       :: sync_vec(GS%nsector)
+
+     sync_vec=0
 
      if(FLAG_MPI_GREENS>0)then
       rank_=rank; size2_=size2
@@ -44,9 +47,11 @@
           CASE('NORMAL')
             write(*,*) '---start CPU Lanczos---'
             call Lanczos_get_GS_sector(lowest)
+            sync_vec(isector)=1
           CASE('GPU')
             write(*,*) '---start GPU Lanczos---'
             !call Lanczos_get_GS_sector_GPU(lowest)
+            sync_vec(isector)=1
           CASE DEFAULT
             stop 'error solver not defined in get GS'
           END SELECT
@@ -64,7 +69,7 @@
           IF(Block_size<0)THEN
            write(log_unit,*) 'Eigenvectors already computed by Cullum during the first Lanczos pass'
           ELSE
-           write(log_unit,*) 'Eigenvectors already computed by Block Lanczos during the first Lanczos pass'
+           write(log_unit,*) 'Eigenvectors already computed by Block Lanczos during the first Lanczos pass' 
           ENDIF
 #endif
         ENDIF
@@ -76,7 +81,7 @@
      !======================================================================!
 
 
-     if(FLAG_MPI_GREENS>0) call sync_eigen_vectors
+     if(FLAG_MPI_GREENS>0) call sync_eigen_vectors(sync_vec)
 
   end subroutine
 
@@ -95,6 +100,9 @@
   REAL(8) :: dE
   INTEGER :: rank_,size2_
   logical :: goforit,sector_bound_file_present
+  integer :: sync_vec(GS%nsector)
+
+     sync_vec=0
 
      INQUIRE(file='ed.sector_bound_file',EXIST=sector_bound_file_present)
 
@@ -143,41 +151,57 @@
      !----------------------------------------------------!
         IF(Block_size==0 .or. uup==0 .or. ddn==0 .or. uup==1 .or. ddn==1  .or.  (uup==itot .and. ddn==itot) )THEN
 
-         if(dimen_H()>FULL_ED_SWITCH)then !BUGGGG    
+
+        
+         if(dimen_H()>FULL_ED_SWITCH)then !BUGGGG
          SELECT CASE (which_lanczos)
           CASE('NORMAL')
             write(*,*) '---start CPU Lanczos---'
             CALL Lanczos_fast_diagonalize(GS%es(isector)%lowest)
+            sync_vec(isector)=0
           CASE('GPU')
             write(*,*) '---start GPU Lanczos---'
             !CALL Lanczos_fast_diagonalize_GPU(GS%es(isector)%lowest) 
+            sync_vec(isector)=0
           CASE('FULL_ED')
             write(*,*) '---start CPU/GPU ED---'
             CALL ED_diago(GS%es(isector)%lowest)
+            sync_vec(isector)=1
           CASE('ARPACK')
             CALL ARPACK_diago(GS%es(isector)%lowest)
+            sync_vec(isector)=1
           CASE DEFAULT
             stop 'error solver not defined in get eigen'
-          END SELECT
+         END SELECT
          else
-            write(*,*) '---start CPU/GPU ED---'  
+            write(*,*) '---start CPU/GPU ED---'
             CALL ED_diago(GS%es(isector)%lowest) !BUGGG
+            sync_vec(isector)=1
          endif
         ELSE
 
-         if(USE_TRANSPOSE_TRICK_MPI) stop 'error block lanczos and lanczos vector split among nodes, stop - critical '
-
+          if(dimen_H()>FULL_ED_SWITCH)then !BUGGGG
+            if(USE_TRANSPOSE_TRICK_MPI) stop 'error block lanczos and lanczos vector split among nodes, stop - critical '
 #ifdef _complex
             CALL Lanczos_Cullum_diagonalize(GS%es(isector)%lowest,eigenvalue_eigenvector=1)
             CALL Lanczos_Cullum_diagonalize(GS%es(isector)%lowest,eigenvalue_eigenvector=2)
+            sync_vec(isector)=1
 #else
           IF(Block_size<0)THEN
             CALL Lanczos_Cullum_diagonalize(GS%es(isector)%lowest,eigenvalue_eigenvector=1)
             CALL Lanczos_Cullum_diagonalize(GS%es(isector)%lowest,eigenvalue_eigenvector=2)
+            sync_vec(isector)=1
           ELSE
             CALL Block_Lanczos_diagonalize(GS%es(isector)%lowest)
+            sync_vec(isector)=1
           ENDIF
 #endif
+         else
+            write(*,*) '---start CPU/GPU ED---'
+            CALL ED_diago(GS%es(isector)%lowest) !BUGGG
+            sync_vec(isector)=1
+         endif
+ 
         ENDIF
      !----------------------------------------------------!
 
@@ -208,7 +232,7 @@
       ENDDO
      !======================================================================!
 
-     if(FLAG_MPI_GREENS>0) call sync_eigen_energies
+     if(FLAG_MPI_GREENS>0) call sync_eigen_energies(sync_vec)
 
   end subroutine
 
@@ -228,7 +252,7 @@
   !--------------------!
   !--------------------!
 
-  subroutine sync_eigen_vectors
+  subroutine sync_eigen_vectors(sync_vec)
   implicit none
     integer              :: neigen,ii,iii,jj,kk
     integer              :: dim_space
@@ -237,25 +261,32 @@
 #else
     REAL(8), ALLOCATABLE :: VECP(:,:)
 #endif
+    integer              :: sync_vec(GS%nsector)
 
    call mpibarrier
+
    DO iii=1,GS%nsector
     ii=mod(iii-1,size2)
     if(ii==rank)then; neigen=GS%es(iii)%lowest%neigen; endif
     call mpibcast(neigen,iii=ii)
+    call mpibcast(sync_vec(iii),iii=ii)
+
       !--------------------------------------------------------!
        if(neigen>0)then
         if(ii==rank)then; dim_space=GS%es(iii)%lowest%eigen(1)%dim_space; endif
         call mpibcast(dim_space,iii=ii)
-        if(allocated(VECP)) deallocate(VECP); allocate(VECP(dim_space,neigen))
-        if(ii==rank)then; do kk=1,neigen; VECP(:,kk)=GS%es(iii)%lowest%eigen(kk)%vec%rc; enddo; endif
-        call mpibcast(VECP,iii=ii)
-        if(rank/=ii)then
-         do jj=1,neigen
-           CALL new_rcvector(GS%es(iii)%lowest%eigen(jj)%vec,dim_space)
-           GS%es(iii)%lowest%eigen(jj)%vec%rc=VECP(:,jj)
-         enddo
-        endif
+         if(sync_vec(iii)==1)then
+          if(allocated(VECP)) deallocate(VECP); allocate(VECP(dim_space,neigen))
+          if(ii==rank)then; do kk=1,neigen; VECP(:,kk)=GS%es(iii)%lowest%eigen(kk)%vec%rc; enddo; endif
+          call mpibcast(VECP,iii=ii)
+          if(rank/=ii)then
+           do jj=1,neigen
+             CALL new_rcvector(GS%es(iii)%lowest%eigen(jj)%vec,dim_space)
+             GS%es(iii)%lowest%eigen(jj)%vec%rc=VECP(:,jj)
+           enddo
+          endif
+         endif
+
        endif
       !--------------------------------------------------------!
    enddo
@@ -269,7 +300,7 @@
   !--------------------!
   !--------------------!
 
-  subroutine sync_eigen_energies
+  subroutine sync_eigen_energies(sync_vec)
   implicit none
     integer              :: neigen,ii,iii,jj,dim_space,kk
     integer, allocatable :: dim_lanc(:)
@@ -277,27 +308,33 @@
     REAL(8), ALLOCATABLE :: VAL(:)
     TYPE(eigen_type)     :: eigen
     TYPE(rcvector_type)  :: tempvec
+#ifdef _complex
+  COMPLEX(8),ALLOCATABLE :: VECP(:,:)
+#else
+    REAL(8), ALLOCATABLE :: VECP(:,:)
+#endif
+    integer              :: sync_vec(GS%nsector)
 
    call mpibarrier 
    DO iii=1,GS%nsector
     ii=mod(iii-1,size2)
     if(ii==rank)then; neigen=GS%es(iii)%lowest%neigen; endif 
     call mpibcast(neigen,iii=ii)
+    call mpibcast(sync_vec(iii),iii=ii)
       !--------------------------------------------------------!
        if(neigen>0)then
         if(allocated(dim_lanc)) deallocate(dim_lanc); allocate(dim_lanc(neigen))
         if(ii==rank)then; dim_lanc=GS%es(iii)%lowest%eigen(1:neigen)%lanczos_iter; endif
         call mpibcast(dim_lanc,iii=ii)
+        if(maxval(dim_lanc)==0) dim_lanc=1 !BUG CW
         if(ii==rank)then; dim_space=GS%es(iii)%lowest%eigen(1)%dim_sector; endif
         call mpibcast(dim_space,iii=ii)
         if(allocated(VAL)) deallocate(VAL); allocate(VAL(neigen))
         if(ii==rank)then; VAL=GS%es(iii)%lowest%eigen(1:neigen)%val; endif 
         call mpibcast(VAL,iii=ii)
-
         if(allocated(coef_lanc)) deallocate(coef_lanc); allocate(coef_lanc(maxval(dim_lanc(:)),neigen))
         if(ii==rank)then; do kk=1,neigen; coef_lanc(1:dim_lanc(kk),kk)=GS%es(iii)%lowest%eigen(kk)%lanczos_vecp(1:dim_lanc(kk)) ; enddo; endif
         call mpibcast(coef_lanc,iii=ii)
-
         if(ii/=rank)then
          do jj=1,neigen
           CALL new_eigen(eigen,VAL(jj),tempvec,.true.,RANK=jj,no_vector=.true.)
@@ -307,13 +344,19 @@
           eigen%dim_space=dim_space
           eigen%dim_sector=dim_space
           CALL add_eigen(eigen,GS%es(iii)%lowest); CALL delete_eigen(eigen)
-          write(*,*) '  sync eigenvalues from Lanzcos, FLAG_MPI_GREENS '
-          write(*,*) '  N eigenvalues    : ', GS%es(iii)%lowest%neigen
-          write(*,*) '  eigenvalues      : ', GS%es(iii)%lowest%eigen(jj)%val
-          write(*,*) '  SECTOR dimension : ', GS%es(iii)%lowest%eigen(jj)%dim_space
          enddo
         endif
-
+        if(sync_vec(iii)==1)then !BUGGGG
+        if(allocated(VECP)) deallocate(VECP); allocate(VECP(dim_space,neigen))
+        if(ii==rank)then; do kk=1,neigen; VECP(:,kk)=GS%es(iii)%lowest%eigen(kk)%vec%rc; enddo; endif
+        call mpibcast(VECP,iii=ii)
+        if(rank/=ii)then
+         do jj=1,neigen     
+           CALL new_rcvector(GS%es(iii)%lowest%eigen(jj)%vec,dim_space)
+           GS%es(iii)%lowest%eigen(jj)%vec%rc=VECP(:,jj)
+         enddo
+        endif
+        endif
        endif
       !--------------------------------------------------------!
    enddo

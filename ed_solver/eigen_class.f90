@@ -13,8 +13,8 @@ MODULE eigen_class
     LOGICAL             :: converged = F                  ! TRUE IF CONVERGED
     REAL(DBL)           :: val       = zero               ! Hermitian matrix has real eigenvalues
     TYPE(rcvector_type) :: vec                            ! EIGENVECTOR
-    REAL(DBL)           :: lanczos_vecp(1000),rdist 
-    INTEGER             :: lanczos_iter
+    REAL(DBL)           :: lanczos_vecp(10000),rdist 
+    INTEGER             :: lanczos_iter=0
     INTEGER             :: dim_space
     INTEGER             :: dim_sector
   END TYPE 
@@ -148,6 +148,8 @@ CONTAINS
       list%eigen(i)%converged = .true.
       list%eigen(i)%rank      =  i
       list%eigen(i)%dim_space =  size(VECP(:,1))
+      list%eigen(i)%dim_sector=  size(VECP(:,1)) !BUG CW
+
     enddo 
   END SUBROUTINE
 

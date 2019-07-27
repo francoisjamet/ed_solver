@@ -1,5 +1,15 @@
-#0!/bin/bash
-mpif90   -ffree-line-length-4000 -cpp -D__complex -D__DUMP_DISLIN  -c -O0 -I./MODFILES/ $1.f90 -I./MODFILES/ 
+#!/bin/bash
+
+export CUDADIR="  /opt/apps/cuda/9.1/" 
+export CUDA=" -L${CUDADIR}/lib64 -lcublas -lcudart -lcufft "
+export GPU1=" -L${HOME}/MYLIBRARY/LIB_GPU_NUMERICS -I${HOME}/MYLIBRARY/LIB_GPU_NUMERICS/MODFILES "
+export GPU2=" -I${HOME}/MYLIBRARY/LIB_GPU_NUMERICS_MAGMA/include -I${CUDADIR}/include/ "
+export GPU3="-L${HOME}/MYLIBRARY/LIB_GPU_NUMERICS_MAGMA/lib -lmagma -lgpu -lmagma -lmagmablas ${CUDA} "
+echo $GPU1
+echo $GPU2
+echo $GPU3
+
+mpif90 -cpp -D_GPU -D_GPU_SINGLEPREC  -ffree-line-length-4000 -D__complex -D__DUMP_DISLIN  -c -O0 -I./MODFILES/ $1.f90 -I./MODFILES/ ${GPU1} ${GPU2} ${GPU3}
 echo $1
 echo `ls $1.o`
 ar ru libdmftsolverED.a $1.o 

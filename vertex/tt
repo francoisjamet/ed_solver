@@ -1,0 +1,5 @@
+            !$OMP DO  SCHEDULE(DYNAMIC)
+            !$OMP END DO NOWAIT
+            st = omp_get_wtime()
+            ft = omp_get_wtime()
+	    print*,ft-st

@@ -1,0 +1,17 @@
+#!/bin/bash
+pushd 
+make cleanall
+pushd splines
+make build
+popd
+pushd LIBBLAS
+make all -j $1
+popd
+pushd LIBLAPACK
+make all -j $1
+popd
+pushd LIB_ARPACK
+make all -j $1
+popd
+make build
+make prog
