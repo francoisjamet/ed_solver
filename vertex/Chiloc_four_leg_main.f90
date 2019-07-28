@@ -18,7 +18,7 @@ module cdagger
 !use fortran_cuda
 !use matrix, only : write_array,invmat
 !use StringManip ,only : StrInt2,toString
-
+use openmpmod
 use init_and_close_my_sim
 use mask_class
 use StringManip
@@ -250,8 +250,14 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
    open(unit=10001,file='cutoff')
    read(10001,*) cutoff
    read(10001,*) cccc_cutoff
-   print*,'cutoff=',cutoff
-   print*,'cccc_cutoff=',cccc_cutoff
+   !$OMP PARALLEL
+   if((rank == 0).and.(omp_get_thread_num()==0)) then
+      print*,'cutoff=',cutoff
+      print*,'cccc_cutoff=',cccc_cutoff
+      print*,'nb of process=',size2
+      print*,'nb of threads=',omp_get_num_threads()
+   endif
+   !$OMP END PARALLEL
    do op=1,2 ! dndn and updn terms
 
      if(rank==0) write(*,*) 'OMEGA / FREQ / TOT  = ', kkk_,i_,j_
@@ -285,11 +291,11 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      enddo !sector
   enddo ! dndn or updn
 
-    ! do k_=1,norb
-    !  do l_=1,norb
-    !   call mpisum(chi_loc(k_,l_,:,:,:,:))
-    !  enddo
-    ! enddo
+    do k_=1,norb
+     do l_=1,norb
+      call mpisum(chi_loc(k_,l_,:,:,:,:))
+     enddo
+    enddo
 
     Chi_charge = ( chi_loc(:,:,:,:,:,1)+chi_loc (:,:,:,:,:,2) )/chargedeg
     Chi_spin   = ( chi_loc(:,:,:,:,:,1)-chi_loc (:,:,:,:,:,2) )/spindeg

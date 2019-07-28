@@ -1,5 +1,5 @@
 module chitilde
-  Use omp_lib
+Use openmpmod
 implicit none
 
 
@@ -78,6 +78,7 @@ subroutine  chi_tilde_loc( &
  &    cp_mup_cddn,       cp_mdn_cddn,      cp_mdn_cdup,       cp_muppdn_cdup,&
  &    cp_pupmdn_cddn,    cp_mupmdn_cdup,   cp_mupmdn_cddn,    cp_m2dn_cddn,  &
  &    norb,nomg, frequ_,rank,size2,chi_loc )
+
 implicit none
 integer    :: op,sites,nup,ndn,k_,l_,k__,l__
 complex(8) :: w1,w2,w3
@@ -131,18 +132,26 @@ complex(8) :: chi_loc(norb,norb,norb,norb,nomg,2)
 real(8) :: st,ft
 logical :: bypass=.false., connect
 integer :: rank,size2
+integer :: iomg_mpi(0:size2)
 !various notation for the same thing
 u_=k_;
 d_=l_;
-
-
-
+iomg_mpi(0) = 1
+k_ = nomg / size2
+k__ = mod(nomg,size2)
+do i =1,size2
+   if(i<=k__) then
+      iomg_mpi(i)  = iomg_mpi(i-1) +k_ +1
+   else
+      iomg_mpi(i)  = iomg_mpi(i-1)  +k_
+   endif
+enddo
           !$OMP PARALLEL DEFAULT(NONE)   SHARED(cp_i_E,cp_mdn_cddn,cp_mdn_E,nomg,cccc_cutoff,beta,&
           !$OMP dim_E_pdn,dim_E_i,cp_pdn_E,frequ_,PHI_EPS,boltzZ,cp_i_cddn,op,ndn,sites, cp_p2dn_E,dim_E_m2dn,&
           !$OMP dim_E_mdn,dim_E_p2dn,cp_pdn_cddn,cp_m2dn_cddn,cp_m2dn_E,nup,dim_e_pup,cp_i_cdup,cp_pup_e,dim_e_puppdn,&
           !$OMP cp_pup_cddn,cp_puppdn_e,cp_pdn_cdup,dim_e_muppdn,dim_e_mup,cp_mup_cdup,cp_mup_cddn,cp_muppdn_e,cp_mup_e,&
           !$OMP cp_muppdn_cdup,dim_e_pupmdn,cp_mdn_cdup,cp_pupmdn_e,cp_pupmdn_cddn,dim_e_mupmdn,cp_mupmdn_cdup,cp_mupmdn_e,&
-          !$OMP  cp_mupmdn_cddn,gse,Z,cutoff,dimi,norb,rank,size2)&
+          !$OMP  cp_mupmdn_cddn,gse,Z,cutoff,dimi,norb,rank,size2, iomg_mpi)&
           !$OMP reduction(+:chi_loc) &
           !$OMP PRIVATE(xi1,xi2,yi1,yi2,cccc,diml,dimk,dimj,iomg,k_,k__,l_,l__,cccct,connect,st,ft,j,k,l,stati)
 
@@ -162,7 +171,6 @@ d_=l_;
             diml = dim_E_pdn
             dimk = dim_E_i;
             dimj = dim_E_pdn;
-            st = omp_get_wtime()
             !$OMP DO  SCHEDULE(DYNAMIC)
             do j =1, dimj;
             do k =1, dimk;
@@ -181,8 +189,7 @@ d_=l_;
                    enddo
 
                    if (.not. connect) cycle
-                   do iomg=rank+1,nomg,size2
-
+                   do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                       xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                       xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
 
@@ -200,7 +207,6 @@ d_=l_;
           enddo;enddo;enddo
           !$OMP END DO NOWAIT
 
-          ft = omp_get_wtime()
           !$OMP DO SCHEDULE(DYNAMIC)
             do j =1, dimj;
             do k =1, dimk;
@@ -218,7 +224,7 @@ d_=l_;
                 enddo
              enddo
              if(.not. connect) cycle
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
@@ -262,7 +268,7 @@ d_=l_;
                   enddo
                   if(.not. connect) cycle
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                   xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                   xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
@@ -305,7 +311,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                         yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
@@ -346,7 +352,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                         xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
@@ -388,7 +394,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         yi1 =PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                         yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
@@ -406,7 +412,6 @@ d_=l_;
                 enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
-             ft = omp_get_wtime()
 
         endif
 
@@ -433,7 +438,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                         yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
@@ -476,7 +481,7 @@ d_=l_;
                   if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                      xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                      xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
@@ -494,7 +499,6 @@ d_=l_;
                   enddo
              enddo;enddo;enddo
              !$OMP END DO NOWAIT
-             ft = omp_get_wtime()
 
         endif
 
@@ -521,7 +525,7 @@ d_=l_;
                   if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                      yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                      yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
 
@@ -562,7 +566,7 @@ d_=l_;
                   if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                      yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                      yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
@@ -606,7 +610,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                         xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
 
@@ -646,7 +650,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                         yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
@@ -728,7 +732,7 @@ d_=l_;
                         enddo
                      enddo
                      if(.not. connect) cycle
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -763,7 +767,7 @@ d_=l_;
                         if(.not. connect) cycle
 
 
-                        do iomg=rank+1,nomg,size2
+                        do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                            xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                            do l__ = 1,norb
@@ -800,7 +804,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                       do l__ = 1,norb
@@ -837,7 +841,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
@@ -882,7 +886,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   xi1 =-PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                       do l__ = 1,norb
@@ -920,7 +924,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
 
                   xi2 = PhiM_ii(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
@@ -962,7 +966,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -999,7 +1003,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -1040,7 +1044,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   xi1 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                       do l__ = 1,norb
@@ -1078,7 +1082,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   xi2 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
@@ -1119,7 +1123,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -1155,7 +1159,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -1198,7 +1202,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi1 =-PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                       do l__ = 1,norb
@@ -1234,7 +1238,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi2 = PhiM_ji(beta,cp_i_E(stati), cp_pdn_E(j),cp_pdn_E(k),cp_p2dn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
@@ -1273,7 +1277,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -1309,7 +1313,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_p2dn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -1352,7 +1356,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi1 =-PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                       do l__ = 1,norb
@@ -1388,7 +1392,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi2 = PhiM_li(beta,cp_i_E(stati), cp_m2dn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
@@ -1428,7 +1432,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -1464,7 +1468,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi2 =-PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_m2dn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                       do l__ = 1,norb
@@ -1507,7 +1511,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                       do l__ = 1,norb
@@ -1543,7 +1547,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   xi2 =-PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mdn_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
@@ -1583,7 +1587,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
 
                   yi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                       do l__ = 1,norb
@@ -1619,7 +1623,7 @@ d_=l_;
              if(.not. connect) cycle
 
 
-                  do iomg=rank+1,nomg,size2
+                  do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                   yi2 =-PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                       do l__ = 1,norb
                          do l_ = 1, norb
@@ -1666,7 +1670,7 @@ d_=l_;
                      enddo
                      if(.not. connect) cycle
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1702,7 +1706,7 @@ d_=l_;
                      enddo
                      if(.not. connect) cycle
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pup_E(k),cp_puppdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1742,7 +1746,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1   = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_puppdn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1780,7 +1784,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_puppdn_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1820,7 +1824,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_pup_E(j),cp_pdn_E(k),cp_puppdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1863,7 +1867,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_mup_E(k),cp_muppdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1903,7 +1907,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1939,7 +1943,7 @@ d_=l_;
                      enddo
                      if(.not. connect) cycle
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -1979,7 +1983,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mup_E(j),cp_pdn_E(k),cp_muppdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2017,7 +2021,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_mup_E(j),cp_muppdn_E(k),cp_pdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2058,7 +2062,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_muppdn_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2101,7 +2105,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2141,7 +2145,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_pup_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2181,7 +2185,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_pup_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2220,7 +2224,7 @@ d_=l_;
                      if(.not. connect) cycle
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_li(beta,cp_i_E(stati), cp_pupmdn_E(j),cp_pup_E(k),cp_mdn_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2258,7 +2262,7 @@ d_=l_;
                      enddo
                      if(.not. connect) cycle
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_pupmdn_E(k),cp_pup_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2297,7 +2301,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_pupmdn_E(k),cp_pup_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2341,7 +2345,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mdn_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,1),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2381,7 +2385,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mup_E(j),cp_mupmdn_E(k),cp_mup_E(l),frequ_(iomg,3),frequ_(iomg,1),frequ_(iomg,2),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2421,7 +2425,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ki(beta,cp_i_E(stati), cp_mdn_E(j),cp_mupmdn_E(k),cp_mup_E(l),frequ_(iomg,1),frequ_(iomg,3),frequ_(iomg,2),PHI_EPS);
 
                         do l__ = 1,norb
@@ -2462,7 +2466,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_li(beta,cp_i_E(stati), cp_mupmdn_E(j),cp_mup_E(k),cp_mdn_E(l),frequ_(iomg,2),frequ_(iomg,3),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2502,7 +2506,7 @@ d_=l_;
 
 
 
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ji(beta,cp_i_E(stati), cp_mdn_E(j),cp_mup_E(k),cp_i_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
@@ -2539,7 +2543,7 @@ d_=l_;
                         enddo
                      enddo
                      if(.not. connect) cycle
-                     do iomg=rank+1,nomg,size2
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_li(beta,cp_i_E(stati), cp_i_E(j),cp_mup_E(k),cp_mdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb

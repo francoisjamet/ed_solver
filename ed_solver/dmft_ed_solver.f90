@@ -340,13 +340,13 @@ end subroutine
      write(log_unit,*) '================================'
 
 
-     !if(compute_all)then
-     if(FLAG_DUMP_INFO_FOR_GAMMA_VERTEX) then
+     if(compute_all)then
+      if(FLAG_DUMP_INFO_FOR_GAMMA_VERTEX) then
         write(log_unit,*) ' ==== compute vertex ==== '
         call four_leg_vertex_matrices_routine(AIM,GS)
         write(log_unit,*) ' ==== vertex done ===='
+      endif
      endif
-     !endif
 
      write(log_unit,*) ' ==== compute keldysh ==== '
      call keldysh
@@ -480,7 +480,6 @@ end subroutine
      endif
     !call plotarray(frequ,bandes,'ED_IMP_DOS')
 
-     if(rank==0)then
      open(unit=87120,file='chiloc_vertex_sigma_ret_spin_up')
      open(unit=87121,file='chiloc_vertex_sigma_matsu_spin_up')
      open(unit=87122,file='chiloc_vertex_green_ret_spin_up')
@@ -497,7 +496,6 @@ end subroutine
      close(87121)
      close(87122)
      close(87123)
-     endif
 
      if(set_omp_thread_outside_solver>0)then
       call omp_set_num_threads(set_omp_thread_outside_solver)
@@ -641,7 +639,7 @@ end subroutine
  integer(4)              :: iw
  real(8)                 :: reg,a(3),get,sol(2)
  logical,parameter       :: init_every_time=.true.
- logical                 :: first_time,skip_the_fit
+ logical                 :: first_time
  real(8)                 :: dummy,dummy_tot
  write(*,*)'eee'
  open(unit=10001,file='PARAMS')
@@ -1051,11 +1049,6 @@ endif
   call mpibarrier
  endif
 
- inquire(file='ed.skip.fit',exist=skip_the_fit)
- if(skip_the_fit)then
-  write(*,*) 'SKIPPING FIT IN ED SOLVER'
- endif
-
  write(*,*) 'allocated JJmatrix? :', allocated(JJmatrix),allocated(UUmatrix)
 
  call solver_ED_interface( &
@@ -1064,7 +1057,7 @@ endif
                   & retarded=retarded,restarted_=.false.,                                                                   &
                   & compute_all=compute_all,tot_rep=tot_rep, spm_=spm_,corhop_=corhop_,imp_causality=.true.,                &
                   & param_output_=bathparams_output,param_input_=bathparams,use_specific_set_parameters_=.true.,            &
-                  & Jhund_=JJhund,use_input_delta_instead_of_fit=use_input_delta,Jhund_matrix=JJmatrix_loc,skip_fit=skip_the_fit)
+                  & Jhund_=JJhund,use_input_delta_instead_of_fit=use_input_delta,Jhund_matrix=JJmatrix_loc)
 
  if(size2>1.and..not.no_mpi)then
   write(*,*) 'ED SOLVER TERMINATED, RANK = ', rank
@@ -1327,7 +1320,9 @@ endif
   integer,optional   ::  average_G_
   integer,optional   ::  UUmatrix_in_size
   real(8),optional   ::  UUmatrix_in(impurity_%N,impurity_%N)
-  integer            ::  chan,g1,g2,g3,g4,ii,aa
+  integer            ::  chan,g1,g2,g3,g4
+  real(8) :: aa
+  integer :: ii
 
     use_precomputed_slater_matrix=.false.
 
@@ -1343,7 +1338,7 @@ endif
        stop
      endif
      if(chan>7)then
-       write(log_unit,*) 'ERROR, slater file contains too many orbitals (max is 6 for memory reason): ', chan
+       write(log_unit,*) 'ERROR, slater file contains too many orbitals (max is 6 for memory reason): '
        write(log_unit,*) '       remove this failsafe in case you want to do more...'
        stop
      endif
@@ -1360,7 +1355,7 @@ endif
        write(*,*) 'maxval complex-real     : ',maxval(abs(Slater_Coulomb_c-Slater_Coulomb_r))
        write(*,*) 'critical'
        stop
-     endif
+    endif
      Slater_Coulomb_c=conjg(Slater_Coulomb_c) !we always use the conjugate of Slater_Coulomb_c
 #endif
      inquire(file='Uc.dat.ED.matrix',exist=use_precomputed_slater_matrix)
@@ -1397,7 +1392,7 @@ endif
        enddo
        close(71123)
     endif
-!    call generate_UC_dat_files(UUmatrix_in_size,Slater_Coulomb_c)
+    call generate_UC_dat_files(UUmatrix_in_size,Slater_Coulomb_c)
      write(log_unit,*) '#############################################'
 
 
@@ -1587,5 +1582,4 @@ endif
 !**************************************************************************
 !**************************************************************************
 !**************************************************************************
-
 END MODULE
