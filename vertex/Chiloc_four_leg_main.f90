@@ -231,8 +231,8 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
    call swapupdn()
 
    call check_partition_function
-
    call read_green()
+
 
    call read_frequ()
 
@@ -247,16 +247,15 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
    chargedeg = 1.d0 ;  spindeg = 1.d0
 
    chi_loc = 0.d0
-   open(unit=10001,file='cutoff')
-   read(10001,*) cutoff
-   read(10001,*) cccc_cutoff
    !$OMP PARALLEL
-   if((rank == 0).and.(omp_get_thread_num()==0)) then
-      print*,'cutoff=',cutoff
-      print*,'cccc_cutoff=',cccc_cutoff
-      print*,'nb of process=',size2
-      print*,'nb of threads=',omp_get_num_threads()
-   endif
+   ! if((rank == 0).and.(omp_get_thread_num()==0)) then
+   !    print*,'nomega=',nomega
+   !    print*,'cutoff=',cutoff
+   !    print*,'cccc_cutoff=',cccc_cutoff
+   !    print*,'nb of process=',size2
+   !    print*,'nb of threads=',omp_get_num_threads()
+
+   ! endif
    !$OMP END PARALLEL
    do op=1,2 ! dndn and updn terms
 
@@ -270,6 +269,12 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
        call allocate_cp
        call assign_cp_eigen
        call assign_cp_matrices
+     !   print*,dim_E_i,dim_E_pup,  dim_E_pdn,               dim_E_mup,        &
+     ! dim_E_mdn,               dim_E_p2dn,       &
+     ! dim_E_m2dn,              dim_E_puppdn,     &
+     ! dim_E_muppdn,            dim_E_pupmdn,     &
+     ! dim_E_mupmdn
+
 
         call chi_tilde_loc( &
      &    cutoff, cccc_cutoff, op, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i),  &
@@ -282,8 +287,8 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      &    cp_pup_cddn,       cp_pdn_cdup,       cp_pdn_cddn,       cp_mup_cdup,      &
      &    cp_mup_cddn,       cp_mdn_cddn,       cp_mdn_cdup,       cp_muppdn_cdup,   &
      &    cp_pupmdn_cddn,    cp_mupmdn_cdup,    cp_mupmdn_cddn,    cp_m2dn_cddn,     &
-     &    norb,j_,frequ_,rank,size2,chi_loc )
-
+     &    j_,frequ_,rank,size2,chi_loc )
+        cycle
           if(verbose)then
            if(op==1) write(*,*) 'pDNDN = ', pDNDN
            if(op==2) write(*,*) 'pUPDN = ', pUPDN
@@ -521,6 +526,10 @@ end subroutine
 
 subroutine init
      call initialize_my_simulation
+     open(unit=10001,file='cutoff')
+     read(10001,*) nomega
+     read(10001,*) cutoff
+     read(10001,*) cccc_cutoff
 
      !call init_gpu_device
      !call test_cuda_c !BUGGGGG
@@ -531,11 +540,9 @@ subroutine init
      path=.true.
 
      if(path) then
-       nomega=1
        roaming=.false.
        vertex_gpu=.false.
      else
-       nomega=15
        roaming=.true.
        vertex_gpu=.true.
      endif
@@ -608,15 +615,16 @@ subroutine read_green
      if(allocated(green))   deallocate(green)
      allocate(green(-nmatsu:nmatsu,norb,norb))
      green=0.d0
+     open(unit=10001,file='g1.inp')
      do i=1,nmatsu
-      read(4849) green(i,:,:)
-      green(-i,:,:) = conjg(transpose(green(i,:,:)))
-      !write(1010,*) i,real(green(i,1,1)),aimag( green(i,1,1) )
-      !write(1011,*) i,real(green(i,2,2)),aimag( green(i,2,2) )
-      !write(1012,*) i,real(green(i,1,2)),aimag( green(i,1,2) )
-      !write(1013,*) i,real(green(i,2,1)),aimag( green(i,2,1) )
+        read(4849) green(i,:,:)
+        green(-i,:,:) = conjg(transpose(green(i,:,:)))
+        do k_ =1,norb
+           do k__ =1,norb
+              write(10001,'(2(x,f14.8))',advance='no') real(green(i,k_,k__)),aimag(green(i,k_,k__))
+           enddo
+        enddo
      enddo
-
      if(rank==0) write(*,*) 'there are X matsubara frequencies in G : ', j_
      close(4849)
 

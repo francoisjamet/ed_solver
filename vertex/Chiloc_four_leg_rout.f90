@@ -77,7 +77,7 @@ subroutine  chi_tilde_loc( &
  &    cp_pup_cddn,       cp_pdn_cdup,      cp_pdn_cddn,       cp_mup_cdup,   &
  &    cp_mup_cddn,       cp_mdn_cddn,      cp_mdn_cdup,       cp_muppdn_cdup,&
  &    cp_pupmdn_cddn,    cp_mupmdn_cdup,   cp_mupmdn_cddn,    cp_m2dn_cddn,  &
- &    norb,nomg, frequ_,rank,size2,chi_loc )
+ &    nomg, frequ_,rank,size2,chi_loc )
 
 implicit none
 integer    :: op,sites,nup,ndn,k_,l_,k__,l__
@@ -125,8 +125,10 @@ complex(8) :: cDNDN,cUPDN,xi1,yi1,xi2,yi2
 integer    :: dimi,diml,dimk,dimj,i,j,k,l,stati,stati_,u_,d_
 real(8)    :: cutoff
 real(8)    :: d1,d2
-real(8)    :: cccc, cccc_cutoff, cccct(norb,norb,norb,norb)
-integer :: norb, nomg, iomg
+real(8)    :: cccc, cccc_cutoff
+real(8)    :: cccct(:,:,:,:)
+integer, parameter :: norb=2
+integer ::  nomg, iomg
 complex(8) :: frequ_(nomg,3)
 complex(8) :: chi_loc(norb,norb,norb,norb,nomg,2)
 real(8) :: st,ft
@@ -134,6 +136,7 @@ logical :: bypass=.false., connect
 integer :: rank,size2
 integer :: iomg_mpi(0:size2)
 !various notation for the same thing
+allocate(cccct(norb,norb,norb,norb))
 u_=k_;
 d_=l_;
 iomg_mpi(0) = 1
@@ -151,7 +154,7 @@ enddo
           !$OMP dim_E_mdn,dim_E_p2dn,cp_pdn_cddn,cp_m2dn_cddn,cp_m2dn_E,nup,dim_e_pup,cp_i_cdup,cp_pup_e,dim_e_puppdn,&
           !$OMP cp_pup_cddn,cp_puppdn_e,cp_pdn_cdup,dim_e_muppdn,dim_e_mup,cp_mup_cdup,cp_mup_cddn,cp_muppdn_e,cp_mup_e,&
           !$OMP cp_muppdn_cdup,dim_e_pupmdn,cp_mdn_cdup,cp_pupmdn_e,cp_pupmdn_cddn,dim_e_mupmdn,cp_mupmdn_cdup,cp_mupmdn_e,&
-          !$OMP  cp_mupmdn_cddn,gse,Z,cutoff,dimi,norb,rank,size2, iomg_mpi)&
+          !$OMP  cp_mupmdn_cddn,gse,Z,cutoff,dimi,rank,size2, iomg_mpi)&
           !$OMP reduction(+:chi_loc) &
           !$OMP PRIVATE(xi1,xi2,yi1,yi2,cccc,diml,dimk,dimj,iomg,k_,k__,l_,l__,cccct,connect,st,ft,j,k,l,stati)
 
