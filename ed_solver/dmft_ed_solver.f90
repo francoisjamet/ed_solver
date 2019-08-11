@@ -1145,6 +1145,19 @@ endif
     close(10001)
     close(10002)
 
+    open(unit=10001,file='sigr')
+    k=cluster_problem_size
+    do j=1,nreal_frequ
+       do ii = 1, k
+          write(10001,'((x,f14.8))',advance='no')  frequr(j)
+          do jj = 1, k
+             write(10001,'(2(x,f14.8))',advance='no') real(sigw(ii,jj,j)),aimag(sigw(ii,jj,j))
+          enddo
+       enddo
+       write(10001,*)
+    enddo
+    close(10001)
+
  open(unit=10001,file='_sigma_output_full_1',form='unformatted')
   k=cluster_problem_size
   do j=1,nmatsu_frequ
@@ -1392,7 +1405,7 @@ endif
        enddo
        close(71123)
     endif
-    call generate_UC_dat_files(UUmatrix_in_size,Slater_Coulomb_c)
+!    call generate_UC_dat_files(UUmatrix_in_size,Slater_Coulomb_c)
      write(log_unit,*) '#############################################'
 
 
