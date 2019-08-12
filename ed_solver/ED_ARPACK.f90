@@ -87,10 +87,10 @@ CONTAINS
 !     | different sizes, and to get different parts of the |
 !     | spectrum.  However, The following conditions must  |
 !     | be satisfied:                                      |
-!     |                   N <= MAXN,                       | 
+!     |                   N <= MAXN,                       |
 !     |                 NEV <= MAXNEV,                     |
-!     |             NEV + 1 <= NCV <= MAXNCV               | 
-!     %----------------------------------------------------% 
+!     |             NEV + 1 <= NCV <= MAXNCV               |
+!     %----------------------------------------------------%
       if ( n .gt. maxn ) then
          write(*,*) 'n,maxn : ',n,maxn
          print *, ' ERROR with _SDRV1: N is greater than MAXN '
@@ -146,7 +146,7 @@ CONTAINS
 
  10   continue
 !        %---------------------------------------------%
-!        | Repeatedly call the routine DSAUPD and take | 
+!        | Repeatedly call the routine DSAUPD and take |
 !        | actions indicated by parameter IDO until    |
 !        | either convergence is indicated or maxitr   |
 !        | has been exceeded.                          |
@@ -169,9 +169,9 @@ CONTAINS
 !        %-------------------------------------------%
 !        | No fatal errors occurred.                 |
 !        | Post-Process using DSEUPD.                |
-!        | Computed eigenvalues may be extracted.    |  
+!        | Computed eigenvalues may be extracted.    |
 !        | Eigenvectors may also be computed now if  |
-!        | desired.  (indicated by rvec = .true.)    | 
+!        | desired.  (indicated by rvec = .true.)    |
 !        %-------------------------------------------%
          call dseupd ( rvec, 'All', select, d, v, maxn, sigma, bmat, n, which, &
              & nev, tol, resid, ncv, v, maxn, iparam, ipntr, workd, workl, lworkl, ierr )
@@ -494,7 +494,7 @@ CONTAINS
 #ifdef _complex
     Neigen_=min(dimen_H()-1,  Neigen_arpack)
 #else
-    Neigen_=min(dimen_H()-1,2*Neigen_arpack)
+    Neigen_=min(dimen_H()-1,Neigen_arpack)
 #endif
 
     if(Neigen_arpack<2*Neigen)then
@@ -538,7 +538,7 @@ CONTAINS
         exit
        endif
       enddo
-      if(j/=0) nconv=j   
+      if(j/=0) nconv=j
      else
       nconv=0
      endif
@@ -565,7 +565,7 @@ CONTAINS
     !----------------------------------------------------------------------------------------------!
 
     IF(ALLOCATED(VALP)) DEALLOCATE(VALP); IF(ALLOCATED(VECP)) DEALLOCATE(VECP)
- 
+
   return
   end subroutine
 
@@ -602,7 +602,7 @@ CONTAINS
     INTEGER                             :: jj,ii,i,j
     REAL(DBL)                           :: coeff
     INTEGER                             :: dimenvec
-    
+
     CALL reset_timer(start_diagH)
     ALLOCATE(VECP(dimen_H(),dimen_H()),VALP(dimen_H()))
     if(dimen_H()==0) stop 'error Hilbert space has 0 dimension'
@@ -619,7 +619,7 @@ CONTAINS
       VECP(:,ii)=outvec%rc
       invec%rc(ii)=0.d0
     ENDDO
- 
+
     CALL timer_fortran(start_diagH,"# BUILDING OF "//TRIM(ADJUSTL(title_H_()))//" TOOK ")
     CALL reset_timer(start_diagH)
 
@@ -630,7 +630,7 @@ CONTAINS
 #ifdef _GPU
     call choose_gpu(rank)
 #ifdef _GPU_SINGLEPREC
-    call eigenvector_cuda_r(dimenvec,VECP,VALP,VECP,.true.) 
+    call eigenvector_cuda_r(dimenvec,VECP,VALP,VECP,.true.)
 #else
     call eigenvector_cuda_r(dimenvec,VECP,VALP,VECP,.false.)
 #endif
@@ -640,7 +640,7 @@ CONTAINS
 #endif
     else
       VALP(1)=VECP(1,1) !BUGGG
-      VECP=1.  
+      VECP=1.
     endif
 
     CALL timer_fortran(start_diagH,"# DIAGONALIZATION OF "//TRIM(ADJUSTL(title_H_()))//" TOOK ")
@@ -666,9 +666,9 @@ CONTAINS
     CALL add_eigen(j,VECP,VALP,lowest)
     !----------------------------------------------------------------------------------------------!
 
-    IF(ALLOCATED(VALP)) DEALLOCATE(VALP); IF(ALLOCATED(VECP)) DEALLOCATE(VECP) 
+    IF(ALLOCATED(VALP)) DEALLOCATE(VALP); IF(ALLOCATED(VECP)) DEALLOCATE(VECP)
 
-    CALL delete_rcvector(invec) 
+    CALL delete_rcvector(invec)
     CALL delete_rcvector(outvec)
     CALL timer_fortran(start_diagH,"# STORING "//TRIM(ADJUSTL(title_H_()))//" TOOK ")
 
@@ -712,4 +712,4 @@ CONTAINS
 !**************************************************************************
 !**************************************************************************
 
-END MODULE 
+END MODULE
