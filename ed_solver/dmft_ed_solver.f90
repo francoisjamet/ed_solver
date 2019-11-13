@@ -634,7 +634,7 @@ end subroutine
  real(8),allocatable     :: temp(:),Eimp_(:,:),bathparams(:),bathparams_output(:)
  integer(4)              :: my_seed,my_iter_dmft,l
  complex(8)              :: ccc
- logical                 :: nohole,fit_green,checkit,cluster_full,check,use_input_delta,no_cdw
+ logical                 :: nohole,fit_green,checkit,cluster_full,check,use_input_delta,no_cdw,skip_fit
  real(8)                 :: ww,ddd,aa
  integer(4)              :: iw
  real(8)                 :: reg,a(3),get,sol(2)
@@ -830,6 +830,10 @@ end subroutine
   endif
 endif
 
+INQUIRE(file="ed.skip.fit",exist=skip_fit)
+if(skip_fit)then
+   write(*,*) 'SKIPPING FIT IN ED SOLVER'
+endif
 
   INQUIRE(file='delta_input_full_1',EXIST=check)
   if(check)then
@@ -1054,7 +1058,7 @@ endif
  call solver_ED_interface( &
                   & bath_param_ed,iter_,mmu,g_out,self_out,hybrid_in_long,Eimp,sigw,rdens,impurity_,                        &
                   & Himp,gw,frequr,flip_input_output=FLAG_ORDER_TYPE/=3,para_state_=FLAG_ORDER_TYPE==1,                     &
-                  & retarded=retarded,restarted_=.false.,                                                                   &
+                  & retarded=retarded,restarted_=.false.,   skip_fit=skip_fit,                                                                &
                   & compute_all=compute_all,tot_rep=tot_rep, spm_=spm_,corhop_=corhop_,imp_causality=.true.,                &
                   & param_output_=bathparams_output,param_input_=bathparams,use_specific_set_parameters_=.true.,            &
                   & Jhund_=JJhund,use_input_delta_instead_of_fit=use_input_delta,Jhund_matrix=JJmatrix_loc)
