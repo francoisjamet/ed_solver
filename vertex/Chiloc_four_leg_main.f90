@@ -219,7 +219,7 @@ complex(8),allocatable              :: green(:,:,:)
 real(8) :: t1,t2,t3,t4,t5,fac
 integer :: omegai,nui,mui
 real(8),allocatable :: omega_array(:)
-integer :: nomega
+integer :: nomega,start_omega
 integer :: kkk_,kkk,lll_,Nc,k_,l_,k__,l__
 real(8) :: spindeg,chargedeg,cutoff,cccc_cutoff,def,diff
 logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
@@ -242,8 +242,9 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
 
    do kkk_=1,nomega ! bosonic frequ
 
-   call open_path_area_file ; call fix_frequency_table ;  call calculate_bubble
 
+   call open_path_area_file ; call fix_frequency_table ;  call calculate_bubble
+   if(kkk_ < start_omega) cycle
    chargedeg = 1.d0 ;  spindeg = 1.d0
 
    chi_loc = 0.d0
@@ -307,7 +308,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
     Chi0_charge= (Chi0_loc(:,:,:,:,:,1)+Chi0_loc(:,:,:,:,:,2) )/chargedeg
     Chi0_spin  = (Chi0_loc(:,:,:,:,:,1)-Chi0_loc(:,:,:,:,:,2) )/spindeg
     if(rank == 0) call write_chiloc
-!    call write_results_fermionic
+    call write_results_fermionic
 
 
    if(rank==0) write(*,*)'NEXT OMEGA , RANK : ', rank
@@ -348,8 +349,8 @@ subroutine fix_frequency_table
 
           !ROAMING
            if(roaming)then
-            mu=mu-omega/2.
-            nu=nu-omega/2.
+            mu=mu-omega
+            nu=nu-omega
            endif
 
           if(path)then
@@ -527,6 +528,7 @@ end subroutine
 subroutine init
      call initialize_my_simulation
      open(unit=10001,file='cutoff')
+     read(10001,*) start_omega
      read(10001,*) nomega
      read(10001,*) cutoff
      read(10001,*) cccc_cutoff
@@ -569,8 +571,8 @@ subroutine init
        omega_array(i)= 2.d0 * ( 2.d0*dble(i-1) * pi / beta )
       enddo
      else
-      do i=1,nomega
-       omega_array(i)= 1.d0 * ( 2.d0*dble(i-1) * pi / beta )
+        do xi=1,nomega
+           omega_array(i)= 1.d0 * ( 2.d0*dble(i-1) * pi / beta )
       enddo
      endif
 
