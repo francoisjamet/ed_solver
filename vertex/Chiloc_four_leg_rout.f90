@@ -128,7 +128,7 @@ real(8)    :: d1,d2
 real(8)    :: cccc, cccc_cutoff
 real(8),allocatable    :: cccct(:,:,:,:)
 integer, parameter :: norb=1
-integer, parameter :: norbb=2
+integer, parameter :: norbb=1
 integer ::  nomg, iomg
 complex(8) :: frequ_(nomg,3)
 complex(8) :: chi_loc(norbb,norbb,norbb,norbb,nomg,2)
@@ -198,7 +198,6 @@ enddo
                    do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                       xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                       xi2 =-PhiM_ii(beta,cp_i_E(stati), cp_pdn_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,3),frequ_(iomg,2),frequ_(iomg,1),PHI_EPS);
-
                       do l__ = 1,norb
                          do l_ = 1, norb
                             do k__ = 1,norb
@@ -1678,6 +1677,44 @@ enddo
 
                      do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
                         xi1 = PhiM_ii(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
+
+
+                        do l__ = 1,norb
+                           do l_ = 1, norb
+                              do k__ = 1,norb
+                                 do k_ =1,norb
+                                    chi_loc(k_,k__,l_,l__,iomg,2) =chi_loc(k_,k__,l_,l__,iomg,2) + cccct(k_,k__,l_,l__)  * xi1
+                                 enddo
+                              enddo
+                           enddo
+                        enddo
+                     enddo
+                  enddo;enddo;enddo
+                  !$OMP END DO NOWAIT
+
+            dimj = dim_E_pup;
+            dimk = dim_E_i;
+            diml = dim_E_pdn;
+
+            !$OMP DO SCHEDULE(DYNAMIC)
+            do j =1, dimj;
+               do k =1, dimk;
+                  do l =1, diml;
+                     connect = .false.
+                     do l__ = 1,norb
+                        do l_ = 1, norb
+                           do k__ = 1,norb
+                              do k_ =1,norb
+                                 cccct(k_,k__,l_,l__)  = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cdup(k_,j,+k) * cp_i_cdup(k__,j,+stati);
+                                 if(abs(cccct(k_,k__,l_,l__)) >cccc_cutoff) connect = .true.
+                              enddo
+                           enddo
+                        enddo
+                     enddo
+                     if(.not. connect) cycle
+
+                     do iomg=iomg_mpi(rank),iomg_mpi(rank+1)-1
+                        xi1 = PhiM_ki(beta,cp_i_E(stati), cp_pup_E(j),cp_i_E(k),cp_pdn_E(l),frequ_(iomg,1),frequ_(iomg,2),frequ_(iomg,3),PHI_EPS);
                         do l__ = 1,norb
                            do l_ = 1, norb
                               do k__ = 1,norb
@@ -1691,11 +1728,11 @@ enddo
                      enddo
                   enddo;enddo;enddo
                   !$OMP END DO NOWAIT
-
             diml = dim_E_puppdn;
             dimk = dim_E_pup;
             dimj = dim_E_pup;
-            !$OMP DO SCHEDULE(DYNAMIC)
+
+                              !$OMP DO SCHEDULE(DYNAMIC)
             do j =1, dimj;
                do k =1, dimk;
                   do l =1, diml;
@@ -1727,8 +1764,6 @@ enddo
                      enddo
                   enddo;enddo;enddo
                   !$OMP END DO NOWAIT
-                  !print*,3,chi_loc(1,1,1,1,1,2)/boltzZ,stati
-
             diml = dim_E_pdn;
             dimk = dim_E_puppdn;
             dimj = dim_E_pdn;
@@ -1767,7 +1802,6 @@ enddo
                      enddo
                   enddo;enddo;enddo
                !$OMP END DO NOWAIT
-               !print*,4,chi_loc(1,1,1,1,1,2)/boltzZ,stati
 
             diml = dim_E_pdn;
             dimk = dim_E_puppdn;
@@ -1806,7 +1840,6 @@ enddo
 
                   enddo;enddo;enddo
                !$OMP END DO NOWAIT
-               !print*,5,chi_loc(1,1,1,1,1,2)/boltzZ,stati
 
             diml = dim_E_puppdn;
             dimk = dim_E_pdn;

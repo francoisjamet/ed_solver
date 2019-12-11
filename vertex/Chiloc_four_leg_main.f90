@@ -258,8 +258,8 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
 
    ! endif
    !$OMP END PARALLEL
-   do op=1,2 ! dndn and updn terms
 
+   do op=1,2 ! dndn and updn terms
      if(rank==0) write(*,*) 'OMEGA / FREQ / TOT  = ', kkk_,i_,j_
 
      do i=1,nsector
@@ -276,7 +276,6 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      ! dim_E_muppdn,            dim_E_pupmdn,     &
      ! dim_E_mupmdn
 
-
         call chi_tilde_loc( &
      &    cutoff, cccc_cutoff, op, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i),  &
      &    cp_i_E,            dim_E_i,           cp_pup_E,          dim_E_pup,        &
@@ -289,11 +288,12 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
      &    cp_mup_cddn,       cp_mdn_cddn,       cp_mdn_cdup,       cp_muppdn_cdup,   &
      &    cp_pupmdn_cddn,    cp_mupmdn_cdup,    cp_mupmdn_cddn,    cp_m2dn_cddn,     &
      &    j_,frequ_,rank,size2,chi_loc )
-        cycle
+
           if(verbose)then
            if(op==1) write(*,*) 'pDNDN = ', pDNDN
            if(op==2) write(*,*) 'pUPDN = ', pUPDN
         endif
+
      enddo !sector
   enddo ! dndn or updn
 
@@ -308,7 +308,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
     Chi0_charge= (Chi0_loc(:,:,:,:,:,1)+Chi0_loc(:,:,:,:,:,2) )/chargedeg
     Chi0_spin  = (Chi0_loc(:,:,:,:,:,1)-Chi0_loc(:,:,:,:,:,2) )/spindeg
     if(rank == 0) call write_chiloc
-    call write_results_fermionic
+!    call write_results_fermionic
 
 
    if(rank==0) write(*,*)'NEXT OMEGA , RANK : ', rank
@@ -347,10 +347,15 @@ subroutine fix_frequency_table
 
            omega=omega_array(kkk_)
 
-          !ROAMING
+
            if(roaming)then
-            mu=mu-omega
-            nu=nu-omega
+              if( modulo(kkk_,2) == 1) then
+                 mu=mu- (dble(kkk_-1) * pi / beta )
+                 nu=nu -(dble(kkk_-1) * pi / beta )
+              else
+                 mu=mu- (dble(kkk_-2) * pi / beta )
+                 nu=nu - (dble(kkk_-2) * pi / beta )
+              endif
            endif
 
           if(path)then
@@ -542,7 +547,7 @@ subroutine init
      path=.true.
 
      if(path) then
-       roaming=.false.
+       roaming=.true.
        vertex_gpu=.false.
      else
        roaming=.true.
@@ -566,15 +571,15 @@ subroutine init
      open(unit=880,file='vertex_charge_sum')
      open(unit=881,file='vertex_spin_sum')
 
-     if(roaming)then
-      do i=1,nomega
-       omega_array(i)= 2.d0 * ( 2.d0*dble(i-1) * pi / beta )
-      enddo
-     else
+     ! if(roaming)then
+     !  do i=1,nomega
+     !   omega_array(i)= 2.d0 * ( 2.d0*dble(i-1) * pi / beta )
+     !  enddo
+     ! else
         do i=1,nomega
            omega_array(i)= 1.d0 * ( 2.d0*dble(i-1) * pi / beta )
       enddo
-     endif
+!     endif
 
      allocate(nup(nsector),ndn(nsector))
      if(allocated(cup_mat)) deallocate(cup_mat)
