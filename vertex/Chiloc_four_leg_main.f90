@@ -571,7 +571,7 @@ subroutine init
        omega_array(i)= 2.d0 * ( 2.d0*dble(i-1) * pi / beta )
       enddo
      else
-        do xi=1,nomega
+        do i=1,nomega
            omega_array(i)= 1.d0 * ( 2.d0*dble(i-1) * pi / beta )
       enddo
      endif
