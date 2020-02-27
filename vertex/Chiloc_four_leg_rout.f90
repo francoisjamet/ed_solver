@@ -127,8 +127,8 @@ real(8)    :: cutoff
 real(8)    :: d1,d2
 real(8)    :: cccc, cccc_cutoff
 real(8),allocatable    :: cccct(:,:,:,:)
-integer, parameter :: norb=1
-integer, parameter :: norbb=1
+integer, parameter :: norb=2
+integer, parameter :: norbb=2
 integer ::  nomg, iomg
 complex(8) :: frequ_(nomg,3)
 complex(8) :: chi_loc(norbb,norbb,norbb,norbb,nomg,2)
@@ -1667,7 +1667,8 @@ enddo
                         do l_ = 1, norb
                            do k__ = 1,norb
                               do k_ =1,norb
-                                 cccct(k_,k__,l_,l__)  = boltzZ *  cp_i_cddn(l_,l,+stati)* cp_i_cddn(l__,l,+k) * cp_i_cdup(k_,j,+k) * cp_i_cdup(k__,j,+stati)
+!                                               cUPDN =cUPDN + xi1 * cp_i_cdup(mu,j,+stati)* cp_i_cdup(pu,j,+k) * cp_i_cddn(md,l,+k) * cp_i_cddn(pd,l,+stati);
+                                 cccct(k_,k__,l_,l__)  = boltzZ *  cp_i_cddn(l__,l,+stati)* cp_i_cddn(l_,l,+k) * cp_i_cdup(k__,j,+k) * cp_i_cdup(k_,j,+stati)
                                  if(abs(cccct(k_,k__,l_,l__)) >cccc_cutoff) connect = .true.
                               enddo
                            enddo
