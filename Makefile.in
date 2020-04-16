@@ -1,0 +1,7 @@
+  SHELL       =  /bin/bash
+  FCOMPL      = mpif90 -ffree-line-length-4000 -lstdc++    #gfortran-mp-6
+  prep        = -cpp -D__complex -fopenmp -DOPENMP_MPI #-D__arpack
+  FFLAG       =  -O3  -fopenmp -ffree-line-length-2000 -ffree-line-length-4000 -lstdc++
+  RANLIB      = ranlib
+  C++         = g++
+  LAPACK      = -lopenblas #-L${ED_PATH}/LIBBLAS -L${ED_PATH}/LIBLAPACK -llapack -lblas

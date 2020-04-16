@@ -631,6 +631,7 @@ subroutine read_green
               write(10001,'(2(x,f14.8))',advance='no') real(green(i,k_,k__)),aimag(green(i,k_,k__))
            enddo
         enddo
+        write(10001,*)
      enddo
      if(rank==0) write(*,*) 'there are X matsubara frequencies in G : ', j_
      close(4849)
