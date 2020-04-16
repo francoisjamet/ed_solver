@@ -62,9 +62,6 @@
 
 \section{Installation}
 
-
-You need to install first the solver and then a small extension for the susceptibility calculation.
-
 I would recommend to use my version of Cedric's solver.
 
 In the main directory, change the file Makefile.in with your configuration. In principle, the only thing which needs to be changed is the lapack/blas library. In my case, I use openblas which can be easily installed on any GNU/Linux system.
@@ -78,9 +75,10 @@ It prints many warnings... but should works and create the folder bin which cont
 
 \subsection{PARAMS}
 
-The PARAMS file contains all the information about the impurity except the hybridization $\Delta$.
+The PARAMS file contains all the information about the  local hamiltonian.
 
-The format is :
+The format of the file is  :
+
 \begin{lstlisting}
 n_imp ! number of site in the impurity ( For the rest of this example, I assume that n_imp=2.
 E_11_up E_12_up
@@ -133,7 +131,7 @@ the format is :
 \section{Susceptibility}
 
 
-The difficulty of susceptibility calculation in ED is that transition between two nearby igh energy states  will contribute. That is why Lanczos is not a good option and only Full\_ed works.
+The difficulty of susceptibility calculation in ED is that transition between two nearby high energy states  will contribute. That is why Lanczos is not a good option and only Full\_ed works.
 
 So the susceptibility calculation is limited to number site+bath <= 8.
 
@@ -161,7 +159,7 @@ To compute the suscpetibility :
   1d-9
 \end{lstlisting}
 The last two numbers are cutoffs used in the code.
-In practice, dmft\_chiloc will  compute this formula :
+In practice, dmft\_chiloc will  compute  :
 
 \begin{equation}
   \chi = \sum_{ijkl} e^{-\b E_i} \Phi(E_i,E_j,E_k,E_l,\v_1,\v_2,\O) c_{ij}c_{jk}c_{kl}c_{li}
@@ -171,17 +169,17 @@ where $E_i$ is the energy level of state i,  $c_{ij}$ a matrix transition betwee
 
 The number of element of this sum increases as $N_{eigen}^3$ ! It is crucial to reduce it as much as we can and that is the role of the cutoffs
 
-The element is computed if $e^{-\b E_i} >cutoff_1$ and $c_{ij}c_{jk}c_{kl}c_{li} >cutoff_2$.
+The element is computed if $e^{-\b E_i} >\text{cutoff}_1$ and $c_{ij}c_{jk}c_{kl}c_{li} >\text{cutoff}_2$.
 
 
-Last but not least, dmft\_chiloc works with mpi and openmp. Use as much threads as cpu available  and mpi to share between nodes.
+dmft\_chiloc works with mpi and openmp. Use as much threads as cpu available  and mpi to share between nodes.
 
 
 The output of the dmft\_chiloc is a series of files which contains the susceptibility. To convert them in a nice hdf5 file format, run the program readvertex
 
 readvertex takes 2 arguments : nomb beta
 
-The first one is the number of bosonic frequency and beta the inverse temperature.
+The first one is the number of bosonic frequencies and   beta is  the inverse temperature.
 
 It creates the file chiS.h5 which contains 'chis' and 'chic' (charge and spin susceptibilities).
 
