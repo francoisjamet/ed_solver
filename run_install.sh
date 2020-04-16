@@ -1,4 +1,6 @@
 #!/bin/bash
+
+set -xe
 pushd ed_solver
 make cleanall
 
@@ -16,7 +18,9 @@ popd
 
 make build
 make prog
+make install
 popd
 pushd vertex
 make prog
+make install
 popd

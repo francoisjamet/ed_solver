@@ -1,3 +1,4 @@
+#!/bin/env python
 import sys
 from itertools import product
 nv =  int(sys.argv[1])

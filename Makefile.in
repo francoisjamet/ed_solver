@@ -4,4 +4,4 @@
   FFLAG       =  -O3  -fopenmp -ffree-line-length-2000 -ffree-line-length-4000 -lstdc++
   RANLIB      = ranlib
   C++         = g++
-  LAPACK      = -lopenblas #-L${ED_PATH}/LIBBLAS -L${ED_PATH}/LIBLAPACK -llapack -lblas
+  LAPACK      = -lopenblas

@@ -1,3 +1,4 @@
+#!/bin/env python
 import h5py
 import numpy as np
 import sys
@@ -35,14 +36,16 @@ for iom,i1,i2,i3,i4 in product(range(nomb),range(norb),range(norb),range(norb),r
 
     for i in range(nomv) :
         for j in range(nomv) :
-            chiloc_spin[i,j,i1,i2,i3,i4,iom] = chi[k]/beta
+
+#            chiloc_spin[i,j,i1,i2,i3,i4,iom] = chi[k]/beta old version, need to check but does not work against TRIQS for om >1.
+            chiloc_spin[i,j,i2,i1,i4,i3,iom] = chi[k]/beta
             k+=1
     chi = np.loadtxt('chiloc_charge_{}_{}{}{}{}'.format(iom+1,i1+1,i2+1,i3+1,i4+1)).T
     chi = chi[0] +1j * chi[1]
     k = 0
     for i in range(nomv) :
         for j in range(nomv) :
-            chiloc_charge[i,j,i1,i2,i3,i4,iom] = chi[k]/beta
+            chiloc_charge[i,j,i2,i1,i4,i3,iom] = chi[k]/beta
             k+=1
     # if iom == 0 :
     #     print('read green_output_matsu and add for chi_charge')

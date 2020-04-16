@@ -26,6 +26,7 @@ build: comp comp2 finish
 prog:
 	cp splines/libsplines.a .
 	${FCOMPL} ${prep} -o dmft_solver  ${FFLAG} memory_address_functions.o ed_prog.f90 -L. -ldmftsolverED -lsplines -I./MODFILES $(LAPACK)
+	${FCOMPL} ${prep} -o generate_edcorrel	 dmft_generate_edcorrel.f90
 
 finish:
 	cp splines/libsplines.a .
@@ -44,4 +45,4 @@ cleanall : clean
 	pushd LIB_ARPACK && 	make clean &&	popd
 install :
 	mkdir -p ../bin
-	mv dmft_solver ../bin/.
+	cp dmft_solver generate_edcorrel ../bin/.

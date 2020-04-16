@@ -1,0 +1,71 @@
+
+
+
+ PAIRING_IMP_TO_BATH=.false.
+ track_sectors=.true.
+ fast_fit=.true.
+
+ first_iter_use_edinput=.false.
+
+ start_para=.false.
+ FLAG_GUP_IS_GDN=.false.
+
+ force_nupdn_basis=.true.
+ force_sz_basis=.false.
+ force_no_pairing=.true.
+
+ lambda_sym_fit=0.p
+ fit_shift=0.0d0
+ weight_expo=2
+
+ FLAG_MPI_GREENS=0
+ window_hybrid=0
+ window_hybrid2=0
+ window_weight=0.
+ search_step=0.000001
+
+ cutoff_hamilt_param=0.000000010
+ dist_max=1.d-12
+ tolerance=1.d-13
+ FIT_METH=CIVELLI
+
+ flag_introduce_only_noise_in_minimization=.false.
+ flag_introduce_noise_in_minimization=.false.
+
+
+flag_idelta_two_scales_ed=0
+nsec=-1
+nsec0=0
+which_lanczos=NORMAL
+Neigen=4
+Block_size=0
+ncpt_approx=0
+cpt_upper_bound=1.00000000
+cpt_lagrange=0.00000001
+iwindow=1
+fmos_iter=10
+fmos_mix=0.40000000
+fmos=.false.
+fmos_fluc=.false.
+fmos_hub1=.false.
+ncpt_flag_two_step_fit=.false.
+Niter_search_max_0=800000
+FLAG_ALL_GREEN_FUNC_COMPUTED=.true.
+fit_weight_power=1.00000000
+force_para_state=.true.
+FLAG_GUP_IS_GDN=.true.
+fit_nw=200
+min_all_bath_param=3
+
+FLAG_DUMP_INFO_FOR_GAMMA_VERTEX=.false.
+Nitermax=1000
+Nitergreenmax=400
+
+Neigen=5
+
+which_lanczos=FULL_ED
+FLAG_FULL_ED_GREEN=.false.
+dEmax0=10
+Block_size=0
+tolerance=1.d-13
+    
