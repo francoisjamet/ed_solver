@@ -199,7 +199,7 @@ def run(beta) :
     sp.call('cp g1.inp g',shell=True)
     sp.call('dmft_solver FLAG_DUMP_INFO_FOR_GAMMA_VERTEX=.true. dEmax0=10000 Neigen=500 Nitergreenmax=1 >out2',shell=True)
     sp.call('omega_path 10',shell=True)
-    sp.call('env OMP_NUM_THREADS=3  dmft_chiloc_2 >chiloc.out',shell=True)
+    sp.call('env OMP_NUM_THREADS=3  dmft_g2_2 >chiloc.out',shell=True)
 
     sp.call('read_g2 2 {}'.format(beta),shell=True)
     # cs = np.array(h5py.File('chiS.h5','r')['chis'])
