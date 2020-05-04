@@ -20,9 +20,9 @@ prog: ${FILES}
 	@echo " ...................... done .............................. "
 install :
 	mkdir -p ../bin
-	cp dmft_chiloc ../bin/.
-	cp ../utils/vertex.py ../bin/readvertex
+	cp dmft_chiloc_* ../bin/.
+	cp ../utils/read_g2 ../bin/read_g2
 	cp ../utils/path.py ../bin/omega_path
-	chmod +x ../bin/readvertex ../bin/omega_path
+	chmod +x  ../bin/omega_path
 
 #########################################################################

@@ -28,7 +28,6 @@ g2_ud = np.zeros((nomv, nomv, norb,norb,norb,norb ,nomb),dtype = complex)
 
 
 from itertools import product
-print(nomb,norb,beta)
 for iom,i1,i2,i3,i4 in product(range(nomb),range(norb),range(norb),range(norb),range(norb)) :
     g2_1 = np.loadtxt('G2_uuuu_{}_{}{}{}{}'.format(iom+1,i1+1,i2+1,i3+1,i4+1)).T
     g2_2 = np.loadtxt('G2_uudd_{}_{}{}{}{}'.format(iom+1,i1+1,i2+1,i3+1,i4+1)).T
