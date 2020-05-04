@@ -127,8 +127,8 @@ real(8)    :: cutoff
 real(8)    :: d1,d2
 real(8)    :: cccc, cccc_cutoff
 real(8),allocatable    :: cccct(:,:,:,:)
-integer, parameter :: norb=2
-integer, parameter :: norbb=2
+integer, parameter :: norb=M_NORB_C
+integer, parameter :: norbb=M_NORB
 integer ::  nomg, iomg
 complex(8) :: frequ_(nomg,3)
 complex(8) :: chi_loc(norbb,norbb,norbb,norbb,nomg,2)
@@ -137,7 +137,9 @@ logical :: bypass=.false., connect
 integer :: rank,size2
 integer :: iomg_mpi(0:size2)
 !various notation for the same thing
+
 allocate(cccct(norbb,norbb,norbb,norbb))
+
 cccct=0
 u_=k_;
 d_=l_;

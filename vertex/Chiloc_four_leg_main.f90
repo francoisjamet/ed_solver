@@ -231,7 +231,6 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
    call swapupdn()
 
    call check_partition_function
-   call read_green()
 
 
    call read_frequ()
@@ -243,7 +242,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
    do kkk_=1,nomega ! bosonic frequ
 
 
-   call open_path_area_file ; call fix_frequency_table ;  call calculate_bubble
+   call open_path_area_file ; call fix_frequency_table
    if(kkk_ < start_omega) cycle
    chargedeg = 1.d0 ;  spindeg = 1.d0
 
@@ -270,11 +269,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
        call allocate_cp
        call assign_cp_eigen
        call assign_cp_matrices
-     !   print*,dim_E_i,dim_E_pup,  dim_E_pdn,               dim_E_mup,        &
-     ! dim_E_mdn,               dim_E_p2dn,       &
-     ! dim_E_m2dn,              dim_E_puppdn,     &
-     ! dim_E_muppdn,            dim_E_pupmdn,     &
-     ! dim_E_mupmdn
+
 
         call chi_tilde_loc( &
      &    cutoff, cccc_cutoff, op, PHI_EPS, beta, ZZ, gs_E, nsites, nup(i), ndn(i),  &
@@ -305,10 +300,7 @@ logical :: path,swap_up_dn,roaming,vertex_gpu,impose_sym
 
     Chi_charge = ( chi_loc(:,:,:,:,:,1)+chi_loc (:,:,:,:,:,2) )/chargedeg
     Chi_spin   = ( chi_loc(:,:,:,:,:,1)-chi_loc (:,:,:,:,:,2) )/spindeg
-    Chi0_charge= (Chi0_loc(:,:,:,:,:,1)+Chi0_loc(:,:,:,:,:,2) )/chargedeg
-    Chi0_spin  = (Chi0_loc(:,:,:,:,:,1)-Chi0_loc(:,:,:,:,:,2) )/spindeg
     if(rank == 0) call write_chiloc
-!    call write_results_fermionic
 
 
    if(rank==0) write(*,*)'NEXT OMEGA , RANK : ', rank
@@ -394,69 +386,15 @@ subroutine fix_frequency_table
            endif
 
            if(verbose) write(*,*) "int indices : ", (frequ_ind(i_,j),j=1,3)
-           if(any(abs(frequ_ind(i_,:)) > nmatsu)) then
-            write(*,*) 'error matsubara frequency of G not found in mesh'
-            stop
-           endif
       enddo
       if(kkk_==1) frequ_ind_orig=frequ_ind
       if(kkk_==1) close(4848)
 
 end subroutine
 
-subroutine calculate_bubble()
-
-          Chi0_loc=0.
-          do op= 1,2
-          do i_=1,j_
-           omegai=frequ_ind(i_,1)
-           mui   =frequ_ind(i_,2)
-           nui   =frequ_ind(i_,3)
-           if(mui==0.or.nui==0) cycle
-                                    fac=    0.d0
-           if(omegai==0)            fac=    1.d0
-
-           if(omegai==0.and.abs(frequ__(i_,1))>1.d-5)then
-            write(*,*) 'error omega zero not consistent' ; stop
-           endif
-           if(mui==nui.and.op==1)   fac=fac-1.d0
-           frequsum=aimag(frequ__(i_,1)+frequ__(i_,2))
-           if(abs(frequsum)<1.d-4)then
-            write(*,*) 'error frequsum is zero, should be fermionic'
-            stop
-           endif
-           if(frequsum<0.)then
-            ifrequsum=nint( (frequsum*beta/pi-1.0)/2.0 )
-           else
-            ifrequsum=nint( (frequsum*beta/pi+1.0)/2.0 )
-           endif
-           if(abs(ifrequsum)<=nmatsu.and.abs(ifrequsum)/=0)then
-            do k_=1,norb;do l_=1,norb; do k__=1,norb ; do l__=1,norb
-             if(k_==l_.and.k__==l__.and.k__==k_)then
-               Chi0_loc(k_,k__,l_,l__,i_,op)=fac * green(ifrequsum,k_,l_) * green(nui,k_,l_)
-             else
-                                      Chi0_loc(k_,k__,l_,l__,i_,op) = 0.d0
-               if(omegai==0)          Chi0_loc(k_,k__,l_,l__,i_,op) = green(ifrequsum,k_,k__) * green(nui,l_,l__)
-               if(mui==nui.and.op==1) Chi0_loc(k_,k__,l_,l__,i_,op) = Chi0_loc(k_,k__,l_,l__,i_,op) - green(ifrequsum,k_,l__) * green(nui,l_,k__)
-             endif
-            enddo;enddo;enddo;enddo
-           else
-             write(*,*) 'Chi 0 error - out of array'
-             stop
-           endif
-           if(abs(nui)>nmatsu)then
-            write(*,*) 'error nu outside bounds';stop
-           endif
-           if(abs(ifrequsum)>nmatsu)then
-            write(*,*) 'error mu+omega outside bounds';stop
-           endif
-          enddo
-          enddo
-          Chi0_loc=Chi0_loc*beta
-end subroutine
 
 subroutine read_vertex()
-     open(unit=1414,file='chiloc_vertex',form='unformatted')
+     open(unit=1414,file='c_transition',form='unformatted')
      read(1414)  !header
 
      do lll_=1,Nc
@@ -557,7 +495,7 @@ subroutine init
      impose_sym=.false.
      swap_up_dn=.false.
 
-     open(unit=1414,file='chiloc_vertex',form='unformatted')
+     open(unit=1414,file='c_transition',form='unformatted')
      read(1414) Nc,ZZ,beta,nsites,min_up,max_up,min_dn,max_dn,nsector
      close(1414)
      norb=Nc
@@ -607,36 +545,6 @@ subroutine swapupdn
      endif
 end subroutine
 
-subroutine read_green
-   open(unit=4849,file="green_output_matsu_full1", form="unformatted")
-     j_=0
-     do
-      read(4849,end=81)
-      j_=j_+1
-     enddo
-   81 continue
-     if(rank==0) write(*,*) 'there are X matsubara frequencies in G : ', j_
-     rewind(4849)
-     nmatsu=j_-20
-
-     if(allocated(green))   deallocate(green)
-     allocate(green(-nmatsu:nmatsu,norb,norb))
-     green=0.d0
-     open(unit=10001,file='g1.inp')
-     do i=1,nmatsu
-        read(4849) green(i,:,:)
-        green(-i,:,:) = conjg(transpose(green(i,:,:)))
-        do k_ =1,norb
-           do k__ =1,norb
-              write(10001,'(2(x,f14.8))',advance='no') real(green(i,k_,k__)),aimag(green(i,k_,k__))
-           enddo
-        enddo
-        write(10001,*)
-     enddo
-     if(rank==0) write(*,*) 'there are X matsubara frequencies in G : ', j_
-     close(4849)
-
-end subroutine
 
 subroutine read_frequ
      if(path)then
@@ -1044,18 +952,21 @@ subroutine open_path_area_file
      endif
     endif
 
-end subroutine
+  end subroutine open_path_area_file
+
 subroutine write_chiloc
   integer :: om,i1,i2,i3,i4,u1,u2
   do  i1 = 1, norb
      do  i2 = 1, norb
         do  i3 = 1, norb
            do  i4 = 1, norb
-              open(unit=8080,file='chiloc_spin_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
-              open(unit=8081,file='chiloc_charge_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
+              ! open(unit=8080,file='chiloc_spin_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
+              ! open(unit=8081,file='chiloc_charge_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
+              open(unit=8080,file='G2_uuuu_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
+              open(unit=8081,file='G2_uudd_'//adjustl(trim(toString(kkk_)))//'_'//adjustl(trim(toString(i1)))//adjustl(trim(toString(i2)))//adjustl(trim(toString(i3)))//adjustl(trim(toString(i4))))
               do om = 1, j_
-                 write(8080,*) real(Chi_spin(i1,i2,i3,i4,om)), aimag(Chi_spin(i1,i2,i3,i4,om))
-                 write(8081,*) real(Chi_charge(i1,i2,i3,i4,om)), aimag(Chi_charge(i1,i2,i3,i4,om))
+                 write(8080,*) real(chi_loc(i1,i2,i3,i4,om,1)),aimag(chi_loc(i1,i2,i3,i4,om,1))
+                 write(8081,*) real(chi_loc(i1,i2,i3,i4,om,2)),aimag(chi_loc(i1,i2,i3,i4,om,2))
               enddo
               close(8080)
               close(8081)
@@ -1064,233 +975,6 @@ subroutine write_chiloc
      enddo
   enddo
 end subroutine write_chiloc
-subroutine write_results_fermionic
-implicit none
-integer :: a,b,aa,bb
-integer :: tt1,tt2,tt1_,tt2_,n_,n__
-
-   tt1 =minval(frequ_ind_orig(:,2));  tt2 =maxval(frequ_ind_orig(:,2))
-   tt1_=minval(frequ_ind_orig(:,3));  tt2_=maxval(frequ_ind_orig(:,3))
-   n_=tt2-tt1
-   if(tt1_/=tt1.or.tt2_/=tt2)then
-    write(*,*) 'non square matrix'
-    stop
-   endif
-   if(tt1/=-tt2)then
-    write(*,*) 'error tt1 not -tt2'; write(*,*) 'tt1,tt2 : ', tt1,tt2; stop;
-   endif
-   if(tt1>0)then
-    write(*,*) 'error tt1 positive, not tested'
-    stop
-   endif
-   n__=norb*n_
-
-   if(tt1/=tt1_.or.tt2/=tt2_) then
-    write(*,*) 'stop error tt1 diff tt2';
-    write(*,*) 'tt1,tt1_,tt2,tt2_', tt1,tt1_,tt2,tt2_;stop
-   endif
-
-   if(allocated(Chi0_spin_inv))   deallocate(Chi0_spin_inv)
-   if(allocated(Chi_spin_inv))    deallocate(Chi_spin_inv)
-   if(allocated(Chi0_charge_inv)) deallocate(Chi0_charge_inv)
-   if(allocated(Chi_charge_inv))  deallocate(Chi_charge_inv)
-
-   allocate( Chi0_spin_inv   (n__,n__), Chi_spin_inv   (n__,n__) )
-   allocate( Chi0_charge_inv (n__,n__), Chi_charge_inv (n__,n__) )
-
-   if(rank==0)then
-    if(.not.path)then
-    write(*,*) 'build full matrix'
-    Chi0_spin_inv=0.;Chi0_charge_inv=0.;Chi_spin_inv=0.;Chi_charge_inv=0.
-    do k_=1,norb
-     do l_=1,norb
-      !write(*,*) 'orbitals : ', k_,l_
-      do i_=1,j_
-       a=frequ_ind_orig(i_,2)
-       b=frequ_ind_orig(i_,3)
-       !write(*,*) 'shape Chi0_inv', shape(Chi0_spin_inv)
-       !write(*,*) 'a,b', a,b
-       !write(*,*) 'j_ : ', j_
-       if(a==0)then ; write(*,*) 'zero fermionic frequ a'; stop;endif
-       if(b==0)then ; write(*,*) 'zero fermionic frequ b'; stop;endif
-       if(a<0)then
-        aa=(k_-1)*n_ + abs(a)
-       else
-        aa=(k_-1)*n_ + a + abs(tt1)
-       endif
-       if(b<0)then
-        bb=(l_-1)*n_ + abs(b)
-       else
-        bb=(l_-1)*n_ + b + abs(tt1)
-       endif
-       Chi0_spin_inv  (aa,bb) = Chi0_spin(k_,k_,l_,l_,i_)
-       Chi_spin_inv   (aa,bb) = Chi_spin(k_,k_,l_,l_,i_)
-       Chi0_charge_inv(aa,bb) = Chi0_charge(k_,k_,l_,l_,i_)
-       Chi_charge_inv (aa,bb) = Chi_charge(k_,k_,l_,l_,i_)
-       if(impose_sym)then
-        Chi0_spin_inv  (bb,aa) = Chi0_spin_inv  (aa,bb)
-        Chi_spin_inv   (bb,aa) = Chi_spin_inv   (aa,bb)
-        Chi0_charge_inv(bb,aa) = Chi0_charge_inv(aa,bb)
-        Chi_charge_inv (bb,aa) = Chi_charge_inv (aa,bb)
-       endif
-      enddo
-     enddo
-    enddo
-    if(verbose)then
-      write(*,*) '=== CHI SPIN ==='
-      do aa=1,n__
-       write(*,'(20f12.2)') (real(Chi_spin_inv(aa,bb)),bb=1,n__)
-      enddo
-      write(*,*) '=== CHI CHARGE ==='
-      do aa=1,n__
-       write(*,'(20f12.2)') (real(Chi_charge_inv(aa,bb)),bb=1,n__)
-      enddo
-    endif
-    if(vertex_gpu)then
-     !call matinv_magma_complex(n__,Chi0_spin_inv)
-     !call matinv_magma_complex(n__,Chi_spin_inv)
-     !call matinv_magma_complex(n__,Chi0_charge_inv)
-     !call matinv_magma_complex(n__,Chi_charge_inv)
-     !write(*,*) Chi_spin_inv
-    else
-     write(*,*) 'invert spin'
-     !call invmat(n__,Chi0_spin_inv  ); call invmat(n__,Chi_spin_inv   )
-     write(*,*) 'invert charge'
-     !call invmat(n__,Chi0_charge_inv); call invmat(n__,Chi_charge_inv )
-     write(*,*) 'subtracts'
-    endif
-
-    Chi_spin_inv   = Chi0_spin_inv   - Chi_spin_inv
-    Chi_charge_inv = Chi0_charge_inv - Chi_charge_inv
-
-   write(*,*) 'back to place holder'
-
-   do k_=1,norb
-     do l_=1,norb
-      !write(*,*) 'orbitals : ', k_,l_
-      do i_=1,j_
-       a=frequ_ind_orig(i_,2); b=frequ_ind_orig(i_,3)
-       !write(*,*) 'shape Chi0_inv', shape(Chi0_spin_inv)
-       !write(*,*) 'a,b', a,b
-       !write(*,*) 'j_ : ', j_
-       if(a<0)then
-        aa=(k_-1)*n_ + abs(a)
-       else
-        aa=(k_-1)*n_ + a + abs(tt1)
-       endif
-       if(b<0)then
-        bb=(l_-1)*n_ + abs(b)
-       else
-        bb=(l_-1)*n_ + b + abs(tt1)
-       endif
-       Chi_vertex_spin(k_,k_,l_,l_,i_)    = Chi_spin_inv   (aa,bb)
-       Chi_vertex_charge(k_,k_,l_,l_,i_)  = Chi_charge_inv (aa,bb)
-      enddo
-     enddo
-    enddo
-
-    write(*,*) 'done'
-    endif
-
-    do k_=1,norb
-    do k__=1,norb
-    do l_=1,norb
-    do l__=1,norb
-
-    do op=1,2
-      if(op==1) open(unit=8080,file='vertex_upup_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      if(op==2) open(unit=8080,file='vertex_updn_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      do i_=1,j_
-       if(Verbose) write(*,*) 'writing : ', i_,j_
-       if(op==1) tmpc=chi_loc(k_,k__,l_,l__,i_,1)
-       if(op==2) tmpc=chi_loc(k_,k__,l_,l__,i_,2)
-       write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)) &
-                           & ,real(tmpc),aimag(tmpc)
-      enddo
-      close(8080)
-
-      if(op==1) open(unit=8080,file='vertex_upup0_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      if(op==2) open(unit=8080,file='vertex_updn0_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      do i_=1,j_
-       if(Verbose) write(*,*) 'writing : ', i_,j_
-       if(op==1) tmpc=Chi0_loc(k_,k__,l_,l__,i_,1)
-       if(op==2) tmpc=Chi0_loc(k_,k__,l_,l__,i_,2)
-       write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)) &
-                           & ,real(tmpc),aimag(tmpc)
-      enddo
-      close(8080)
-
-      if( op==1 ) open(unit=8080,file='vertex_charge0_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      if( op==2 ) open(unit=8080,file=  'vertex_spin0_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      do i_=1,j_
-       if(verbose)write(*,*) 'writing : ', i_,j_
-       if(op==1) tmpc=Chi0_charge(k_,k__,l_,l__,i_)
-       if(op==2) tmpc=Chi0_spin(k_,k__,l_,l__,i_)
-       write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)), &
-        & real(tmpc),aimag(tmpc)
-      enddo
-      close(8080)
-
-      if( op==1 ) open(unit=8080,file='vertex_charge_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      if( op==2 ) open(unit=8080,file=  'vertex_spin_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      do i_=1,j_
-       if(op==1) tmpc=(Chi_charge(k_,k__,l_,l__,i_))
-       if(op==2) tmpc=(Chi_spin(k_,k__,l_,l__,i_))
-       write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)), &
-        & real(tmpc),aimag(tmpc)
-      enddo
-      close(8080)
-
-      if( op==1 ) open(unit=8080,file='vertex_charge_bub_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      if( op==2 ) open(unit=8080,file=  'vertex_spin_bub_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      do i_=1,j_
-       if(op==1) tmpc=Chi_charge(k_,k__,l_,l__,i_)-Chi0_charge(k_,k__,l_,l__,i_)
-       if(op==2) tmpc=Chi_spin(k_,k__,l_,l__,i_)-Chi0_spin(k_,k__,l_,l__,i_)
-       write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)), &
-        & real(tmpc),aimag(tmpc)
-      enddo
-      close(8080)
-
-      if( op==1 ) open(unit=8080,file='vertex_charge_full_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      if( op==2 ) open(unit=8080,file=  'vertex_spin_full_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      do i_=1,j_
-       if(op==1) tmpc=Chi_vertex_charge(k_,k__,l_,l__,i_)
-       if(op==2) tmpc=Chi_vertex_spin(k_,k__,l_,l__,i_)
-       write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)), &
-        & real(tmpc),aimag(tmpc)
-      enddo
-      close(8080)
-
-      if( op==1 ) open(unit=8080,file='vertex_charge_full_diag_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      if( op==2 ) open(unit=8080,file=  'vertex_spin_full_diag_'//adjustl(trim(toString(k_)))//adjustl(trim(toString(k__)))//adjustl(trim(toString(l_)))//adjustl(trim(toString(l__)))//"_"//adjustl(trim(toString(kkk_))))
-      do i_=1,j_
-       if(op==1) tmpc=Chi_vertex_charge(k_,k__,l_,l__,i_)
-       if(op==2) tmpc=Chi_vertex_spin(k_,k__,l_,l__,i_)
-       if(abs(aimag(frequ__(i_,2))-aimag(frequ__(i_,3)))<1.d-5)then
-       write(8080,'(5f20.4)') aimag(frequ__(i_,1)),aimag(frequ__(i_,2)),aimag(frequ__(i_,3)), &
-        & real(tmpc),aimag(tmpc)
-       endif
-      enddo
-      close(8080)
-
-
-     enddo
-
-     tmpc=sum(Chi_charge(k_,k__,l_,l__,:))/  beta / beta *2. !for symmetry
-     write(880,*) k_,k__,l_,l__,omega_array(kkk_),real(tmpc),aimag(tmpc)
-     write(*,*) 'WRITING CHI_LOC CHARGE : ', tmpc
-
-     tmpc=2.*sum(Chi_spin(k_,k__,l_,l__,:))/  beta / beta * 2. !for symmetry
-     write(881,*) k_,k__,l_,l__,omega_array(kkk_),real(tmpc),aimag(tmpc)
-     write(*,*) 'WRITING CHI_LOC SPIN : ', tmpc
-
-     enddo
-     enddo
-     enddo
-     enddo
-
-   endif
-end subroutine
 
 subroutine loop_index_verbose
          if(verbose.or.mod(i,30)==0)then

@@ -19,7 +19,7 @@ PUBLIC :: four_leg_vertex_matrices_routine
    complex(8),allocatable :: c_p(:,:) , c_m(:,:)
 #else
    real(8),   allocatable :: c_p(:,:) , c_m(:,:)
-#endif 
+#endif
   END TYPE
 
   logical,parameter :: verbose=.false.
@@ -75,7 +75,7 @@ contains
   subroutine allocate_dagger_p(cdagger)
   implicit none
   Type(cdagger_mat) :: cdagger
-    if(allocated(cdagger%c_p)) deallocate(cdagger%c_p)    
+    if(allocated(cdagger%c_p)) deallocate(cdagger%c_p)
     allocate(cdagger%c_p(cdagger%k_p,cdagger%l_p))
   end subroutine
 
@@ -107,7 +107,7 @@ contains
   integer                                   :: min_up,max_up,min_dn,max_dn
   real(8)                                   :: beta,ZZ
 
-     CALL init_apply_C (AIM) 
+     CALL init_apply_C (AIM)
      itot = AIM%bath%Nb+AIM%impurity%Nc
      ZZ   = partition(beta_ED,GS)
      min_up=10000; max_up=-10000; min_dn=10000; max_dn=-10000;
@@ -119,7 +119,7 @@ contains
      write(*,*) 'nup ranging : ',min_up,max_up
      write(*,*) 'nup ranging : ',min_dn,max_dn
      if(verbose) write(*,*) 'writing chiloc'
-     if(rank==0) open(unit=1414,file='chiloc_vertex',form='unformatted')
+     if(rank==0) open(unit=1414,file='c_transition',form='unformatted')
      if(Verbose) write(*,*) AIM%impurity%Nc,ZZ,beta_ED,itot,min_up,max_up,min_dn,max_dn,GS%nsector
      if(rank==0) write(1414) AIM%impurity%Nc,ZZ,beta_ED,itot,min_up,max_up,min_dn,max_dn,GS%nsector
 
@@ -137,8 +137,8 @@ contains
        ndn=GS%es(i)%sector%updo%down%npart
        if(FLAG_MPI_GREENS>0) then
          ii=mod(i-1,size2)
-         call mpibcast(cup(i)%k_p,iii=ii) 
-         call mpibcast(cup(i)%l_p,iii=ii)   
+         call mpibcast(cup(i)%k_p,iii=ii)
+         call mpibcast(cup(i)%l_p,iii=ii)
          call mpibcast(cup(i)%k_m,iii=ii)
          call mpibcast(cup(i)%l_m,iii=ii)
          call mpibcast(cdn(i)%k_p,iii=ii)
@@ -156,7 +156,7 @@ contains
          call mpibcast(cup(i)%c_p,iii=ii)
          call mpibcast(cdn(i)%c_m,iii=ii)
          call mpibcast(cdn(i)%c_p,iii=ii)
-       endif 
+       endif
        call mpibarrier
        if(verbose) write(*,*) kkk,nup,ndn
        if(rank==0) write(1414) kkk,nup,ndn
@@ -165,7 +165,7 @@ contains
        if(rank==0) write(1414) GS%es(i)%lowest%eigen(:)%val
        if(Verbose) write(*,*) 'cup p'
        if(rank==0) write(1414) cup(i)%k_p,cup(i)%l_p
-       if(rank==0) write(1414) cup(i)%c_p 
+       if(rank==0) write(1414) cup(i)%c_p
        if(Verbose) write(*,*) 'cup '
        if(rank==0) write(1414) cup(i)%k_m,cup(i)%l_m
        if(rank==0) write(1414) cup(i)%c_m
@@ -215,7 +215,7 @@ contains
     INTEGER                                   :: rank_,size2_
    !----------------------------------------------------!
     INTERFACE
-    ! RETURNS SECTOR OF A,A^+|0> 
+    ! RETURNS SECTOR OF A,A^+|0>
       SUBROUTINE Asector(Asec,pm,sector)
         use sector_class, only : sector_type
        TYPE(sector_type),      INTENT(INOUT) :: Asec
@@ -250,14 +250,14 @@ contains
      else
       rank_=0; size2_=1
      endif
- 
+
     DO isector=rank_+1,GS%nsector,size2_
          write(*,*) 'RANK SECTOR ',rank,isector
          es   => GS%es(isector)
          uup  =  GS%es(isector)%sector%updo%up%npart
          ddn  =  GS%es(isector)%sector%updo%down%npart
 
-         !write(*,*) 'es,uup,ddn : ', isector,uup,ddn 
+         !write(*,*) 'es,uup,ddn : ', isector,uup,ddn
 
          if(verbose) write(*,*) 'BUILDING NEW A SECTORS'
          DO i=1,2
@@ -317,7 +317,7 @@ contains
             enddo
 
             if(jsector==0)Then
-              write(*,*) 'missing sector in four leg Chi : ', jsector 
+              write(*,*) 'missing sector in four leg Chi : ', jsector
               stop
             endif
 
@@ -347,11 +347,11 @@ contains
              write(*,*) 'they should be the same, error'
              stop
             endif
- 
+
             if(kpm==1)then
 
              if(linecolumn)then
-              cdagger(isector)%k_p=i_size 
+              cdagger(isector)%k_p=i_size
               cdagger(isector)%l_p=j_size
              else
               cdagger(isector)%k_p=j_size
@@ -359,7 +359,7 @@ contains
              endif
 
               call allocate_dagger_p(cdagger(isector))
-              if(verbose) write(*,*) 'cdagger matrix, kpm:', kpm 
+              if(verbose) write(*,*) 'cdagger matrix, kpm:', kpm
               do i=1,i_size
                do j=1,j_size
                 if(verbose) write(*,*) i,j,size(GS%es(ii)%lowest%eigen(i)%vec%rc)
@@ -374,8 +374,8 @@ contains
               if(verbose) write(*,*) 'maxval(cdagger) : ', maxval(abs(cdagger(isector)%c_p))
             else
 
-             if(linecolumn)then 
-              cdagger(isector)%k_m=i_size 
+             if(linecolumn)then
+              cdagger(isector)%k_m=i_size
               cdagger(isector)%l_m=j_size
              else
               cdagger(isector)%k_m=j_size
@@ -383,12 +383,12 @@ contains
              endif
 
               call allocate_dagger_m(cdagger(isector))
-              if(verbose) write(*,*) 'cdagger matrix, kpm:', kpm 
+              if(verbose) write(*,*) 'cdagger matrix, kpm:', kpm
               do i=1,i_size
                do j=1,j_size
                 if(verbose) write(*,*) i,j,size(GS%es(ii)%lowest%eigen(i)%vec%rc)
                 if(verbose) write(*,*) i,j,size(Apm_es(kpm)%lowest%eigen(j)%vec%rc)
-                if(linecolumn)Then 
+                if(linecolumn)Then
                  cdagger(isector)%c_m(i,j)= scalprod( GS%es(ii)%lowest%eigen(i)%vec%rc , Apm_es(kpm)%lowest%eigen(j)%vec%rc)
                 else
                  cdagger(isector)%c_m(j,i)= scalprod( GS%es(ii)%lowest%eigen(i)%vec%rc , Apm_es(kpm)%lowest%eigen(j)%vec%rc)
@@ -398,7 +398,7 @@ contains
 
               if(verbose) write(*,*) 'maxval(cdagger) : ', maxval(abs(cdagger(isector)%c_m))
             endif
-           
+
          ENDDO
      !----------------------------------------------------!
 

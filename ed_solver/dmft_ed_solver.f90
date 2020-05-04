@@ -479,22 +479,22 @@ end subroutine
      endif
     !call plotarray(frequ,bandes,'ED_IMP_DOS')
 
-     open(unit=87120,file='chiloc_vertex_sigma_ret_spin_up')
-     open(unit=87121,file='chiloc_vertex_sigma_matsu_spin_up')
-     open(unit=87122,file='chiloc_vertex_green_ret_spin_up')
-     open(unit=87123,file='chiloc_vertex_green_matsu_spin_up')
-     do i=1,size(frequ)
-      write(87122,*) frequ(i),real(gw(1,1,i)),aimag(gw(1,1,i))
-      write(87120,*) frequ(i),real(sigw(1,1,i)),aimag(gw(1,1,i))
-     enddo
-     do i=1,size(bath%hybrid%freq%vec)
-      write(87123,*) aimag(bath%hybrid%freq%vec(i)),real(g_out(1,1,i)),aimag(g_out(1,1,i))
-      write(87121,*) aimag(bath%hybrid%freq%vec(i)),real(self_out(1,1,i)),aimag(self_out(1,1,i))
-     enddo
-     close(87120)
-     close(87121)
-     close(87122)
-     close(87123)
+     ! open(unit=87120,file='chiloc_vertex_sigma_ret_spin_up')
+     ! open(unit=87121,file='chiloc_vertex_sigma_matsu_spin_up')
+     ! open(unit=87122,file='chiloc_vertex_green_ret_spin_up')
+     ! open(unit=87123,file='chiloc_vertex_green_matsu_spin_up')
+     ! do i=1,size(frequ)
+     !  write(87122,*) frequ(i),real(gw(1,1,i)),aimag(gw(1,1,i))
+     !  write(87120,*) frequ(i),real(sigw(1,1,i)),aimag(gw(1,1,i))
+     ! enddo
+     ! do i=1,size(bath%hybrid%freq%vec)
+     !  write(87123,*) aimag(bath%hybrid%freq%vec(i)),real(g_out(1,1,i)),aimag(g_out(1,1,i))
+     !  write(87121,*) aimag(bath%hybrid%freq%vec(i)),real(self_out(1,1,i)),aimag(self_out(1,1,i))
+     ! enddo
+     ! close(87120)
+     ! close(87121)
+     ! close(87122)
+     ! close(87123)
 
      if(set_omp_thread_outside_solver>0)then
       call omp_set_num_threads(set_omp_thread_outside_solver)
