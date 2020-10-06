@@ -57,15 +57,14 @@ FLAG_GUP_IS_GDN=.true.
 fit_nw=200
 min_all_bath_param=3
 
-FLAG_DUMP_INFO_FOR_GAMMA_VERTEX=.false.
-Nitermax=1000
-Nitergreenmax=400
+FLAG_DUMP_INFO_FOR_GAMMA_VERTEX=.true.
+Nitermax=100
+Nitergreenmax=1
 
-Neigen=5
+Neigen=150
 
 which_lanczos=FULL_ED
 FLAG_FULL_ED_GREEN=.false.
-dEmax0=10
+dEmax0=100
 Block_size=0
 tolerance=1.d-13
-    

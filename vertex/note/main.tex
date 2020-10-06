@@ -70,8 +70,70 @@ Then run ./run\_install.sh
 
 It prints many warnings... but should works and create the folder bin which contains the main executables.
 
+If problems, please let me know
+
 
 \section{ED solver}
+
+
+The auxiliary system is a local version of the Hubbard model, called  an Anderson impurity model(AIM) which is described by the action
+\begin{equation}
+  \label{eq:action_impurity}
+  S=\int d \t d\t' \sum_{mn} c_{m}^{\dd}(\t)\mathcal{G}_{mn}^{0,-1}(\t-\t')c(\t) +\sum_{mn}U_{mn} n_{m\ua}n_{n\da}.
+\end{equation}
+or in Hamiltonian formalism,
+\begin{equation}
+  H =  \sum_{i \s} \e_{i \s} f^{\dd}_{i \s} f_{i \s} + \sum_{im\s}V_i f_{im\s}^{\dd} c_{m\s} + V^*_i  c^{\dd}_{\s}f_{i\s}  +\sum_{mn}U_{mn} n_{m\ua}n_{n\da} -\sum_{mn\s}(E_{mn}-\d_{mn} \mu) c^{\dd}_{m\s}c_{n\s}
+    \label{eq:Himpurity}
+\end{equation}
+Eq. (\ref{eq:action_impurity}) and (\ref{eq:Himpurity}) are equivalent if
+\begin{align}
+  \mathcal{G}_0^{-1}(\w) &= \w - \mu - E -\D(\w) \\
+  \D_{mn}(\w) &= \sum_i \frac{V_{im} V^{\dd}_{in}}{\w-\e_i} .
+           \label{eq:def-hybridization}
+\end{align}
+
+The AIM represents a bath of  particles $f_i$ of energy $\e_i$ which can hop on an impurity with the amplitude $V_i$. If there are two particles on the impurity, there is a cost representing by $U$.  In an usual AIM, the bath is a non interacting particle host;  in DMFT context, this bath is  designed to reproduced the rest of the system.
+
+This problem is hard to solve since the Hibert space is infinite. There are a infinite number of electron $f_i$.
+
+In ED solver, the bath $f_i$ is discretized
+
+$\D \sim \D^{fit} =  \sum^{n_{bath}}_i \frac{V_{im} V^{\dd}_{in}}{\w-\e_i}$
+
+Once it is done, the size of the Hilbert space  is $2^{2N}$ with $N= n_{bath}+ n_{imp}$ where $n_{imp}$ is the number of orbital of the AIM.
+
+
+To diagonalize this $H$, two options:
+\begin{itemize}
+\item  full\_ed :  the Hamiltonian is diagonalized completly. works for  $n \leq 8$
+\item  normal : the Hamiltonian is diagonalized with Lanczos method. (This mode could go up to $n = 12$)
+\end{itemize}
+
+
+So we need to feed the code with :
+
+
+\begin{itemize}
+\item The hybridization : need to be write in  delta1.inp
+\item the local  Hamiltonian with $U$ and $E$ : see PARAMS file
+\item Some information for the solver in $ED/ED.in$
+\end{itemize}
+
+
+
+\subsection{$\D(\w)$}
+
+the hybridization is contained in the files delta1.inp (spin up) and delta2.inp.
+
+the format is :
+
+\begin{align}
+  \w_1 \, \Re(\D_{11}) \,  \Im(\D_{11})\,  \Re(\D_{12}) \, \Im(\D_{12})\,  \Re(\D_{21}) \, \Im(\D_{21}) \, \Re(\D_{22}) \, \Im(\D_{22}) \nonumber\\
+  \w_2 \, \Re(\D_{11}) \,  \Im(\D_{11})\,  \Re(\D_{12}) \, \Im(\D_{12})\,  \Re(\D_{21}) \, \Im(\D_{21}) \, \Re(\D_{22}) \, \Im(\D_{22}) \nonumber\\
+  .... \nonumber
+\end{align}
+
 
 \subsection{PARAMS}
 
@@ -111,19 +173,93 @@ F
 0.0000
 \end{lstlisting}
 
+Example for 1 site
+
+\begin{lstlisting}
+  1
+-3.0
+-3.0
+6.0
+1000
+1000
+1000
+F
+1
+F
+0.0000000000000000
+0.0000000000000000
+0.
+100
+0.0    !8 UU
+1.0000000000000001E-002
+3.4000000000000000E-001
+3.2999999999999999E-001
+   7.0999999999999997E-001
+          10
+  0.000000000000000  !0.7 ! JJ
+ F
+ F
+ F
+ F
+0.0
+
+\end{lstlisting}
 
 
-\subsection{$\D(\w)$}
+example for 2 sites $U=10$
+\begin{lstlisting}
+  2
+-5.0 0
+0 -5.0
+-5.0 0
+0 -5.0
+10  2
+2 10
+1000
+1000
+1000
+F
+1
+F
+0.0000000000000000
+0.0000000000000000
+0.
+50
+0.0    !8 UU
+1.0000000000000001E-002
+3.4000000000000000E-001
+3.2999999999999999E-001
+   7.0999999999999997E-001
+          10
+  0.000000000000000  !0.7 ! JJ
+ F
+ F
+ F
+ F
+0.0
+\end{lstlisting}
 
-the hybridization is contained in the files delta1.inp (spin up) and delta2.inp.
 
-the format is :
 
-\begin{align}
-  \w_1 \, \Re(\D_{11}) \,  \Im(\D_{11})\,  \Re(\D_{12}) \, \Im(\D_{12})\,  \Re(\D_{21}) \, \Im(\D_{21}) \, \Re(\D_{22}) \, \Im(\D_{22}) \nonumber\\
-  \w_2 \, \Re(\D_{11}) \,  \Im(\D_{11})\,  \Re(\D_{12}) \, \Im(\D_{12})\,  \Re(\D_{21}) \, \Im(\D_{21}) \, \Re(\D_{22}) \, \Im(\D_{22}) \nonumber\\
-  .... \nonumber
-\end{align}
+
+\section{ED.in}
+
+This file is contained in ED/ED.in
+
+\begin{lstlisting}
+  FIT_METH=CIVELLI <− f i t method o f a v e r y n i c e guy
+f i t _ n w =100 <− number o f f r e q t o f i t
+min_all_bath_param =6 <− number o f s i t e i n t h e bath
+nsec0=0
+nsec=−1
+which_lanczos =FULL_ED <− F u l l d i a g
+Neigen=3
+Nitermax =600 <− ?
+Nitergreenmax =400 <− ?
+FLAG_DUMP_INFO_FOR_GAMMA_VERTEX= . f a l s e . <− compute t r a n s i t i o n m a t r i c e s < i | c | j >
+FLAG_FULL_ED_GREEN= . f a l s e .
+dEmax0=10 <− =~ Thougw away s t a t e i f −b * E <dEmax0
+\end{lstlisting}
 
 
 
