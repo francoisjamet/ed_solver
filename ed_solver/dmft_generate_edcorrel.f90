@@ -14,7 +14,7 @@ read(value,*) spins
  write(*,*) '================ SIZE OF CORREL : ',k
  write(*,*) '================ SPIN           : ',spins
 
-open(unit=140,file='ed.correl')
+open(unit=140,file='ed_correl1')
 allocate(dd(2*k,2*k))
 dd=0.0
 do i=1,2*k
