@@ -1131,7 +1131,7 @@ endif
    enddo
  endif
 
- if(rank==0.or.no_mpi)then
+ if( (rank==0.or.no_mpi) .and. (.not. FLAG_DUMP_INFO_FOR_GAMMA_VERTEX))then
     open(unit=10001,file='sig1.inp')
     open(unit=10002,file='sig2.inp')
     k=cluster_problem_size
@@ -1291,7 +1291,7 @@ endif
   close(10001)
   enddo
 !============= with more frequencies ===========!
-  endif
+endif
 
   write(*,*) 'ED CLEANING UP, RANK = ',rank
 
